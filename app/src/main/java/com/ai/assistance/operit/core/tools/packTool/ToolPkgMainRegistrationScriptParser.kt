@@ -28,6 +28,7 @@ internal object ToolPkgMainRegistrationScriptParser {
                             "__operit_script_screen" to mainScriptPath
                         )
                 )
+            val marketOrigin = parseMarketOrigin(captured.marketOrigin, toolPkgId)
             val uiModules = parseRegisteredUiModules(captured.toolboxUiModules)
             val uiRoutes = parseRegisteredUiRoutes(captured.uiRoutes, toolPkgId)
             val navigationEntries = parseRegisteredNavigationEntries(captured.navigationEntries)
@@ -116,6 +117,7 @@ internal object ToolPkgMainRegistrationScriptParser {
             ToolPkgMainRegistrationParseResult.Success(
                 registration =
                     ToolPkgMainRegistration(
+                        marketOrigin = marketOrigin,
                         toolboxUiModules = uiModules,
                         uiRoutes = uiRoutes,
                         navigationEntries = navigationEntries,
@@ -153,6 +155,24 @@ internal object ToolPkgMainRegistrationScriptParser {
             )
             ToolPkgMainRegistrationParseResult.Failure(message)
         }
+    }
+
+    private fun parseMarketOrigin(
+        origin: ToolPkgMarketOrigin?,
+        toolPkgId: String
+    ): ToolPkgMarketOrigin? {
+        if (origin == null) {
+            return null
+        }
+        if (origin.market.trim() != "Operit" || origin.toolpkgId.trim() != toolPkgId.trim()) {
+            return null
+        }
+        return origin.copy(
+            market = "Operit",
+            toolpkgId = toolPkgId.trim(),
+            version = origin.version.trim(),
+            author = origin.author.map(String::trim).filter(String::isNotBlank)
+        )
     }
 
     private fun buildDeveloperFacingFailureMessage(

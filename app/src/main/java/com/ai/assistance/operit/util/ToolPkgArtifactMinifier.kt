@@ -2,15 +2,23 @@ package com.ai.assistance.operit.util
 
 import android.content.Context
 import com.ai.assistance.operit.core.tools.packTool.ToolPkgArchiveParser
+import com.ai.assistance.operit.core.tools.packTool.ToolPkgManifest
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /** Produces standard ToolPkg and script artifacts with executable JavaScript AST-minified. */
 object ToolPkgArtifactMinifier {
+    private const val MARKET_ORIGIN_CAPTURE_METHOD = "_m"
+    private const val MARKET_ORIGIN_XOR_KEY = 0x5A
+
     fun minifyArtifactFile(context: Context, sourceFile: File, isToolPkg: Boolean): ByteArray {
         return ToolPkgJsAstMinifier(context).use { minifier ->
             if (isToolPkg) {
@@ -36,10 +44,13 @@ object ToolPkgArtifactMinifier {
         val executableEntryNames = linkedSetOf<String>()
         val resourceEntryRoots = linkedSetOf<String>()
 
-        ToolPkgArchiveParser.resolveManifestRelativeZipEntryPath(
+        val mainEntryName =
+            ToolPkgArchiveParser.resolveManifestRelativeZipEntryPath(
             manifestBasePath,
             manifestPreview.manifest.main
-        )?.let(executableEntryNames::add)
+        ) ?: throw IllegalArgumentException("manifest.main is required")
+        executableEntryNames.add(mainEntryName)
+        val marketOriginInvocation = buildMarketOriginInvocation(manifestPreview.manifest)
         manifestPreview.manifest.subpackages.forEach { subpackage ->
             ToolPkgArchiveParser.resolveManifestRelativeZipEntryPath(manifestBasePath, subpackage.entry)
                 ?.let(executableEntryNames::add)
@@ -73,7 +84,17 @@ object ToolPkgArtifactMinifier {
                                         resourceEntryRoots
                                     )
                             ) {
-                                minifyJavaScriptBytes(originalBytes, normalizedName, minifier)
+                                minifyJavaScriptBytes(
+                                    bytes = originalBytes,
+                                    entryName = normalizedName,
+                                    minifier = minifier,
+                                    appendedSource =
+                                        if (normalizedName == mainEntryName) {
+                                            marketOriginInvocation
+                                        } else {
+                                            null
+                                        }
+                                )
                             } else {
                                 originalBytes
                             }
@@ -89,11 +110,40 @@ object ToolPkgArtifactMinifier {
     private fun minifyJavaScriptBytes(
         bytes: ByteArray,
         entryName: String,
-        minifier: ToolPkgJsAstMinifier
+        minifier: ToolPkgJsAstMinifier,
+        appendedSource: String? = null
     ): ByteArray {
-        val source = bytes.toString(StandardCharsets.UTF_8)
+        val source = bytes.toString(StandardCharsets.UTF_8) +
+            appendedSource?.let { "\n$it\n" }.orEmpty()
         val minified = minifyJavaScriptSourcePreservingMetadata(source, entryName, minifier)
         return minified.toByteArray(StandardCharsets.UTF_8)
+    }
+
+    /** Keeps market origin out of plain text while letting main initialization report it. */
+    internal fun buildMarketOriginInvocation(manifest: ToolPkgManifest): String {
+        val payload =
+            buildJsonObject {
+                put("market", "Operit")
+                put("toolpkgId", manifest.toolpkgId)
+                put("version", manifest.version)
+                put("author", JsonArray(manifest.author.map { value -> JsonPrimitive(value) }))
+            }
+                .toString()
+        val asciiPayload = buildString {
+            payload.forEach { character ->
+                if (character.code < 0x80) {
+                    append(character)
+                } else {
+                    append("\\u")
+                    append(character.code.toString(16).padStart(4, '0'))
+                }
+            }
+        }
+        val encoded =
+            asciiPayload.toByteArray(StandardCharsets.UTF_8)
+                .map { byte -> (byte.toInt() and 0xFF) xor MARKET_ORIGIN_XOR_KEY }
+        val encodedJson = JsonArray(encoded.map { value -> JsonPrimitive(value) })
+        return "ToolPkg.$MARKET_ORIGIN_CAPTURE_METHOD($encodedJson,$MARKET_ORIGIN_XOR_KEY);"
     }
 
     private fun minifyJavaScriptSourcePreservingMetadata(

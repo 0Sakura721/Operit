@@ -2343,7 +2343,13 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 if (!registerToolPkg(loadedFromDestination)) {
                     return "Failed to register toolpkg '$containerName' due to naming conflict"
                 }
-                return "Successfully imported toolpkg: $containerName\nStored at: ${destinationFile.absolutePath}"
+                val marketOriginNotice =
+                    loadedFromDestination.marketOrigin?.let { origin ->
+                        "\nSource notice: this is the ${origin.market} marketplace ToolPkg '$containerName' " +
+                            "(version: ${origin.version}, author: ${origin.author.joinToString(", ")}). " +
+                            "Please support the original author and beware of resales."
+                    }.orEmpty()
+                return "Successfully imported toolpkg: $containerName\nStored at: ${destinationFile.absolutePath}$marketOriginNotice"
             }
 
             val packageMetadata =

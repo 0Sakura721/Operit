@@ -403,7 +403,7 @@ fun PackageManagerScreen(
                                     )
 
                                 if (importSucceeded) {
-                                    snackbarHostState.showSnackbar(message = context.getString(R.string.external_package_imported))
+                                    snackbarHostState.showSnackbar(message = loadResult.message)
                                 } else {
                                     importErrorMessage =
                                         buildString {

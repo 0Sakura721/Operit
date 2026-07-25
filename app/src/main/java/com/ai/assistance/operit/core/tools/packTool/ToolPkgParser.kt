@@ -27,6 +27,13 @@ internal enum class ToolPkgSourceType {
     EXTERNAL
 }
 
+data class ToolPkgMarketOrigin(
+    val market: String,
+    val toolpkgId: String,
+    val version: String,
+    val author: List<String>
+)
+
 internal data class ToolPkgResourceRuntime(
     val key: String,
     val path: String,
@@ -170,7 +177,8 @@ internal data class ToolPkgContainerRuntime(
 internal data class ToolPkgLoadResult(
     val containerPackage: ToolPackage,
     val subpackagePackages: List<ToolPackage>,
-    val containerRuntime: ToolPkgContainerRuntime
+    val containerRuntime: ToolPkgContainerRuntime,
+    val marketOrigin: ToolPkgMarketOrigin? = null
 )
 
 @Serializable
@@ -290,6 +298,7 @@ internal data class ToolPkgRegisteredTagFunctionHook(
 )
 
 internal data class ToolPkgMainRegistration(
+    val marketOrigin: ToolPkgMarketOrigin? = null,
     val toolboxUiModules: List<ToolPkgRegisteredUiModule> = emptyList(),
     val uiRoutes: List<ToolPkgRegisteredUiRoute> = emptyList(),
     val navigationEntries: List<ToolPkgRegisteredNavigationEntry> = emptyList(),
@@ -1321,7 +1330,8 @@ internal object ToolPkgArchiveParser {
         return ToolPkgLoadResult(
             containerPackage = containerPackage,
             subpackagePackages = subpackagePackages,
-            containerRuntime = runtime
+            containerRuntime = runtime,
+            marketOrigin = mainRegistration.marketOrigin
         )
     }
 

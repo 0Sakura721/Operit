@@ -1,30 +1,32 @@
 package com.ai.assistance.operit.core.tools.javascript
 
+import com.ai.assistance.operit.core.tools.packTool.ToolPkgMarketOrigin
 import org.json.JSONObject
 import org.json.JSONTokener
 
 data class ToolPkgMainRegistrationCapture(
-    val toolboxUiModules: List<String>,
-    val uiRoutes: List<String>,
-    val navigationEntries: List<String>,
-    val desktopWidgets: List<String>,
-    val appLifecycleHooks: List<String>,
-    val messageProcessingPlugins: List<String>,
-    val xmlRenderPlugins: List<String>,
-    val inputMenuTogglePlugins: List<String>,
-    val chatInputHooks: List<String>,
-    val chatViewHooks: List<String>,
-    val chatMessageHooks: List<String>,
-    val toolLifecycleHooks: List<String>,
-    val promptInputHooks: List<String>,
-    val promptHistoryHooks: List<String>,
-    val promptEstimateHistoryHooks: List<String>,
-    val systemPromptComposeHooks: List<String>,
-    val toolPromptComposeHooks: List<String>,
-    val promptFinalizeHooks: List<String>,
-    val promptEstimateFinalizeHooks: List<String>,
-    val summaryGenerateHooks: List<String>,
-    val aiProviders: List<String>
+    val toolboxUiModules: List<String> = emptyList(),
+    val uiRoutes: List<String> = emptyList(),
+    val navigationEntries: List<String> = emptyList(),
+    val desktopWidgets: List<String> = emptyList(),
+    val appLifecycleHooks: List<String> = emptyList(),
+    val messageProcessingPlugins: List<String> = emptyList(),
+    val xmlRenderPlugins: List<String> = emptyList(),
+    val inputMenuTogglePlugins: List<String> = emptyList(),
+    val chatInputHooks: List<String> = emptyList(),
+    val chatViewHooks: List<String> = emptyList(),
+    val chatMessageHooks: List<String> = emptyList(),
+    val toolLifecycleHooks: List<String> = emptyList(),
+    val promptInputHooks: List<String> = emptyList(),
+    val promptHistoryHooks: List<String> = emptyList(),
+    val promptEstimateHistoryHooks: List<String> = emptyList(),
+    val systemPromptComposeHooks: List<String> = emptyList(),
+    val toolPromptComposeHooks: List<String> = emptyList(),
+    val promptFinalizeHooks: List<String> = emptyList(),
+    val promptEstimateFinalizeHooks: List<String> = emptyList(),
+    val summaryGenerateHooks: List<String> = emptyList(),
+    val aiProviders: List<String> = emptyList(),
+    val marketOrigin: ToolPkgMarketOrigin? = null
 )
 
 private enum class RegistrationBucket {
@@ -54,10 +56,34 @@ private enum class RegistrationBucket {
 internal class JsToolPkgRegistrationSession {
     private val lock = Any()
     private var capture: MutableMap<RegistrationBucket, MutableList<String>>? = null
+    private var marketOrigin: ToolPkgMarketOrigin? = null
 
     fun begin() {
         synchronized(lock) {
             capture = mutableMapOf()
+            marketOrigin = null
+        }
+    }
+
+    fun appendMarketOrigin(originJson: String) {
+        val originObject = JSONObject(originJson.trim())
+        val authorArray = originObject.getJSONArray("author")
+        val authors = buildList(authorArray.length()) {
+            for (index in 0 until authorArray.length()) {
+                add(authorArray.getString(index))
+            }
+        }
+        val parsedOrigin =
+            ToolPkgMarketOrigin(
+                market = originObject.getString("market"),
+                toolpkgId = originObject.getString("toolpkgId"),
+                version = originObject.getString("version"),
+                author = authors
+            )
+        synchronized(lock) {
+            check(capture != null) { "toolpkg registration session is not active" }
+            check(marketOrigin == null) { "ToolPkg marketplace origin was registered more than once" }
+            marketOrigin = parsedOrigin
         }
     }
 
@@ -115,6 +141,7 @@ internal class JsToolPkgRegistrationSession {
             val current = capture.orEmpty()
             fun read(bucket: RegistrationBucket): List<String> = current[bucket]?.toList().orEmpty()
             return ToolPkgMainRegistrationCapture(
+                marketOrigin = marketOrigin,
                 toolboxUiModules = read(RegistrationBucket.TOOLBOX_UI),
                 uiRoutes = read(RegistrationBucket.UI_ROUTE),
                 navigationEntries = read(RegistrationBucket.NAVIGATION_ENTRY),
@@ -143,6 +170,7 @@ internal class JsToolPkgRegistrationSession {
     fun end() {
         synchronized(lock) {
             capture = null
+            marketOrigin = null
         }
     }
 
@@ -189,6 +217,29 @@ internal fun buildToolPkgRegistrationBridgeScript(): String {
                     throw new Error('NativeInterface.' + name + ' is unavailable');
                 }
                 return NativeInterface[name].bind(NativeInterface);
+            }
+
+            function captureMarketOrigin(encoded, key) {
+                if (!Array.isArray(encoded)) {
+                    throw new Error('ToolPkg marketplace origin payload must be an array');
+                }
+                var xorKey = Number(key);
+                if (!Number.isInteger(xorKey) || xorKey < 0 || xorKey > 255) {
+                    throw new Error('ToolPkg marketplace origin key is invalid');
+                }
+                var json = '';
+                for (var index = 0; index < encoded.length; index += 1) {
+                    var value = Number(encoded[index]);
+                    if (!Number.isInteger(value) || value < 0 || value > 255) {
+                        throw new Error('ToolPkg marketplace origin payload byte is invalid');
+                    }
+                    json += String.fromCharCode(value ^ xorKey);
+                }
+                var parsed = JSON.parse(json);
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                    throw new Error('ToolPkg marketplace origin payload must decode to an object');
+                }
+                requireNative('registerToolPkgMarketOrigin')(JSON.stringify(parsed));
             }
 
             function copyObject(source, excludedKey) {
@@ -460,6 +511,7 @@ internal fun buildToolPkgRegistrationBridgeScript(): String {
             }
 
             var api = {
+                _m: captureMarketOrigin,
                 registerToolboxUiModule: function(definition) {
                     registerWithNative(
                         definition,

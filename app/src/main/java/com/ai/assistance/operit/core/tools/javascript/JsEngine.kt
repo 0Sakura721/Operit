@@ -1739,6 +1739,11 @@ class JsEngine(private val context: Context) {
         }
 
         @JavascriptInterface
+        fun registerToolPkgMarketOrigin(originJson: String) {
+            toolPkgRegistrationSession.appendMarketOrigin(originJson)
+        }
+
+        @JavascriptInterface
         fun registerToolPkgUiRoute(specJson: String) {
             toolPkgRegistrationSession.appendUiRoute(specJson)
         }
