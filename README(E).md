@@ -21,8 +21,8 @@
 
 <div align="center">
   <img src="app/src/main/assets/logo.svg" width="120" height="120" alt="Operit Logo">
-  <h1>Operit AI - Android AI Agent</h1>
-  <p><b>Beyond chat: let AI operate your phone, run code, and automate tasks</b></p>
+  <h1>Operit AI</h1>
+  <img src="docs/assets/Legacy/expamle/operit-ai-banner-en.png" width="100%" alt="Operit AI - Android's most powerful, most feature-complete, and longest-running open-source AI Agent">
 </div>
 
 ---
