@@ -1,31 +1,23 @@
-<div align="center">
-  <span>中文</span> | <a href="README(E).md">English</a>
-</div>
+<h1 align="center">
+  <img src="app/src/main/assets/logo.svg" width="48" height="48" align="absmiddle" alt=""> Operit AI
+</h1>
 
 <div align="center">
+  <span>中文</span> | <a href="README(E).md">English</a>
+  <br>
   <img src="https://img.shields.io/github/last-commit/AAswordman/Operit" alt="最近提交">
   <img src="https://img.shields.io/badge/Platform-Android_8.0%2B-brightgreen.svg" alt="平台">
   <a href="https://github.com/AAswordman/Operit/releases/latest"><img src="https://img.shields.io/github/v/release/AAswordman/Operit" alt="最新版本"></a>
-  <br>
   <a href="https://github.com/AAswordman/Operit/stargazers"><img src="https://img.shields.io/github/stars/AAswordman/Operit" alt="GitHub Star"></a>
-  <a href="https://operit.app/"><img src="https://img.shields.io/badge/📖-用户指南-blue.svg" alt="用户指南"></a>
-  <a href="https://www.patreon.com/c/aaswordsman"><img src="https://img.shields.io/badge/🌍-Patreon-f96854.svg" alt="Patreon"></a>
-  <a href="https://afdian.com/a/aaswordsman"><img src="https://img.shields.io/badge/💖-支持开发-ff6b6b.svg" alt="支持开发"></a>
-  <a href="docs/doc-src/dev-core/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="欢迎贡献"></a>
   <br>
-  <a href="mailto:aaswordsman@foxmail.com"><img src="https://img.shields.io/badge/📧-Email-red.svg" alt="邮箱"></a>
-  <a href="https://qm.qq.com/q/Sa4fKEH7sO"><img src="https://img.shields.io/badge/💬-QQ群-blue.svg" alt="QQ 群"></a>
-  <a href="https://discord.gg/YnV9MWurRF"><img src="https://img.shields.io/badge/🎮-Discord-5865F2.svg" alt="Discord"></a>
+  <a href="https://operit.app/"><img src="https://img.shields.io/badge/📖-用户指南-blue.svg" alt="用户指南"></a>
+  <a href="docs/doc-src/dev-core/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="欢迎贡献"></a>
   <a href="https://github.com/AAswordman/Operit/issues"><img src="https://img.shields.io/badge/🐛-Issues-orange.svg" alt="问题反馈"></a>
 </div>
 
 <div align="center">
-  <img src="app/src/main/assets/logo.svg" width="120" height="120" alt="Operit 标志">
-  <h1>Operit AI</h1>
-  <img src="docs/assets/Legacy/expamle/operit-ai-banner-zh-cn.png" width="100%" alt="Operit AI - Android 史上最强大、功能最完整、持续迭代最久的开源 AI Agent">
+  <img src="docs/assets/readme/operit-ai-banner-zh-cn.webp" width="100%" alt="Operit AI - Android 史上最强大、功能最完整、持续迭代最久的开源 AI Agent">
 </div>
-
----
 
 ## 项目简介
 
@@ -226,7 +218,7 @@
 
 ## 问题反馈
 
-遇到问题或有建议，欢迎 [提交 Issue](https://github.com/AAswordman/Operit/issues)。请尽量提供复现步骤、设备型号、Android 版本，以及相关截图或录屏。
+遇到问题或有建议，欢迎 [提交 Issue](https://github.com/AAswordman/Operit/issues) 或发送 [Email](mailto:aaswordsman@foxmail.com)。请尽量提供复现步骤、设备型号、Android 版本，以及相关截图或录屏。
 
 ---
 

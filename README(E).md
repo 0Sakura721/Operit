@@ -1,31 +1,23 @@
-<div align="center">
-  <a href="README.md">中文</a> | <span>English</span>
-</div>
+<h1 align="center">
+  <img src="app/src/main/assets/logo.svg" width="48" height="48" align="absmiddle" alt=""> Operit AI
+</h1>
 
 <div align="center">
+  <a href="README.md">中文</a> | <span>English</span>
+  <br>
   <img src="https://img.shields.io/github/last-commit/AAswordman/Operit" alt="Last Commit">
   <img src="https://img.shields.io/badge/Platform-Android_8.0%2B-brightgreen.svg" alt="Platform">
   <a href="https://github.com/AAswordman/Operit/releases/latest"><img src="https://img.shields.io/github/v/release/AAswordman/Operit" alt="Latest Release"></a>
-  <br>
   <a href="https://github.com/AAswordman/Operit/stargazers"><img src="https://img.shields.io/github/stars/AAswordman/Operit" alt="GitHub Stars"></a>
-  <a href="https://operit.app/"><img src="https://img.shields.io/badge/📖-User_Guide-blue.svg" alt="User Guide"></a>
-  <a href="https://www.patreon.com/c/aaswordsman"><img src="https://img.shields.io/badge/🌍-Patreon-f96854.svg" alt="Patreon"></a>
-  <a href="https://afdian.com/a/aaswordsman"><img src="https://img.shields.io/badge/💖-Support_Development-ff6b6b.svg" alt="Support Development"></a>
-  <a href="docs/doc-src/dev-core/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome"></a>
   <br>
-  <a href="mailto:aaswordsman@foxmail.com"><img src="https://img.shields.io/badge/📧-Email-red.svg" alt="Email"></a>
-  <a href="https://qm.qq.com/q/Sa4fKEH7sO"><img src="https://img.shields.io/badge/💬-QQ_Group-blue.svg" alt="QQ Group"></a>
-  <a href="https://discord.gg/YnV9MWurRF"><img src="https://img.shields.io/badge/🎮-Discord-5865F2.svg" alt="Discord"></a>
+  <a href="https://operit.app/"><img src="https://img.shields.io/badge/📖-User_Guide-blue.svg" alt="User Guide"></a>
+  <a href="docs/doc-src/dev-core/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome"></a>
   <a href="https://github.com/AAswordman/Operit/issues"><img src="https://img.shields.io/badge/🐛-Issues-orange.svg" alt="Issues"></a>
 </div>
 
 <div align="center">
-  <img src="app/src/main/assets/logo.svg" width="120" height="120" alt="Operit Logo">
-  <h1>Operit AI</h1>
-  <img src="docs/assets/Legacy/expamle/operit-ai-banner-en.png" width="100%" alt="Operit AI - Android's most powerful, most feature-complete, and longest-running open-source AI Agent">
+  <img src="docs/assets/readme/operit-ai-banner-en.webp" width="100%" alt="Operit AI - Android's most powerful, most feature-complete, and longest-running open-source AI Agent">
 </div>
-
----
 
 ## Introduction
 
@@ -226,7 +218,7 @@ The main project license is [GNU LGPLv3](LICENSE). Third-party components in thi
 
 ## Feedback
 
-Found a problem or have a suggestion? [Open an issue](https://github.com/AAswordman/Operit/issues) and include reproduction steps, your device model, Android version, and relevant screenshots or screen recordings when possible.
+Found a problem or have a suggestion? [Open an issue](https://github.com/AAswordman/Operit/issues) or send an [email](mailto:aaswordsman@foxmail.com). Include reproduction steps, your device model, Android version, and relevant screenshots or screen recordings when possible.
 
 ---
 
