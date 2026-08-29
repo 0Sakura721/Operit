@@ -24,6 +24,13 @@ if(ANDROID_ABI STREQUAL "arm64-v8a")
     add_compile_options(-fno-emulated-tls)
 endif()
 
+# llamafile SGEMM 使用仅 AArch64 具备的 float16 NEON 内建（vld1q_f16 等），
+# 32 位 ARM(armeabi-v7a) 上没有这些指令。在 armv7 下禁用 llamafile 路径，
+# arm64 仍保留以获得最优性能。
+if(ANDROID_ABI STREQUAL "armeabi-v7a")
+    set(GGML_LLAMAFILE OFF CACHE BOOL "Disable llamafile on armeabi-v7a" FORCE)
+endif()
+
 add_subdirectory("${OPERIT_LLAMA_CPP_SOURCE_DIR}" "${OPERIT_LLAMA_CPP_BINARY_DIR}" EXCLUDE_FROM_ALL)
 
 add_library(
