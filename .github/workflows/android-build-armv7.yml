@@ -13,10 +13,26 @@ on:
         options:
           - assembleDebug
           - assembleDebugClone
+          - ':app:assembleArmv7'
       abis:
         description: Android ABIs to build (comma separated)
         required: false
         default: armeabi-v7a,arm64-v8a
+        type: string
+      application_id:
+        description: Android package (applicationId) for this build
+        required: false
+        default: com.ai.assistance.operit
+        type: string
+      publish_release:
+        description: Create a GitHub Release and upload the APK (only for the armv7 release task)
+        required: false
+        default: false
+        type: boolean
+      release_notes:
+        description: Notes for the GitHub Release (optional)
+        required: false
+        default: "Release-signed armeabi-v7a Operit build."
         type: string
       build_ffmpeg:
         description: Build ffmpeg-kit from source for every enabled ABI (heavy, ~1-2h). Disable to use the vendored arm64-only AAR.
@@ -37,7 +53,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   JAVA_VERSION: '21'
@@ -226,18 +242,58 @@ jobs:
           npm run build:examples:github
           python3 tools/example_packages/sync_example_packages.py --no-hot-reload
 
-      - name: Configure Android SDK
+      - name: Configure Android SDK and signing
         shell: bash
         run: |
           set -euo pipefail
           echo "sdk.dir=$ANDROID_HOME" > local.properties
+          # For the release-signed armv7 build, generate a keystore and point the
+          # release signing config at it. The rotation props (V2/V3) are not set,
+          # and the armv7 build type avoids the rotation finalizer.
+          if [[ "${{ inputs.gradle_task }}" == *assembleArmv7* ]]; then
+            KS="$RUNNER_TEMP/operit-release.keystore"
+            keytool -genkeypair -v \
+              -keystore "$KS" -storepass operit-armv7 -alias operit \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=0Sakura721, OU=Operit, O=Operit, L=NA, ST=NA, C=CN" \
+              -keypass operit-armv7 >/dev/null
+            {
+              echo "RELEASE_STORE_FILE=$KS"
+              echo "RELEASE_STORE_PASSWORD=operit-armv7"
+              echo "RELEASE_KEY_ALIAS=operit"
+              echo "RELEASE_KEY_PASSWORD=operit-armv7"
+            } >> local.properties
+            echo "signing keystore generated at $KS"
+          fi
 
       - name: Run Gradle build
         shell: bash
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew "${{ inputs.gradle_task }}" -Poperit.abis="${{ inputs.abis }}" --stacktrace --no-daemon
+          ./gradlew "${{ inputs.gradle_task }}" \
+            -Poperit.abis="${{ inputs.abis }}" \
+            -Poperit.applicationId="${{ inputs.application_id }}" \
+            --stacktrace --no-daemon
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.publish_release && inputs.gradle_task == ':app:assembleArmv7' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$(find app/build/outputs/apk -name 'Operit-armv7.apk' | head -n 1)"
+          if [[ -z "$apk" ]]; then
+            echo "::error::Operit-armv7.apk not found" >&2
+            exit 1
+          fi
+          tag="armv7-$(date +%Y%m%d%H%M%S)"
+          gh release create "$tag" "$apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Operit armeabi-v7a $tag" \
+            --notes "${{ inputs.release_notes }} (package: ${{ inputs.application_id }})" \
+            --draft=false
 
       - name: Upload Android reports
         if: always()

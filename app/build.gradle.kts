@@ -427,7 +427,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ai.assistance.operit"
+        // Package can be overridden per build, e.g. the armeabi-v7a release uses
+        // -Poperit.applicationId=com.ai.assistance.operit.armeabiv7a .
+        applicationId =
+            (rootProject.findProperty("operit.applicationId") as? String)
+                ?: "com.ai.assistance.operit"
         minSdk = 26
         targetSdk = 34
         versionCode = 46
@@ -494,6 +498,17 @@ android {
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("debug")
         }
+        // Release build intended to be published (e.g. the armeabi-v7a build).
+        // Uses the release signing config and intentionally avoids the
+        // V2/V3 rotation finalizer, which is only attached to `assembleRelease`.
+        create("armv7") {
+            initWith(getByName("release"))
+            if (releaseSigningConfig != null) {
+                signingConfig = releaseSigningConfig
+            }
+            matchingFallbacks += listOf("release")
+            resValue("string", "app_name", "Operit")
+        }
     }
     applicationVariants.all {
         if (buildType.name == "nightly") {
@@ -506,6 +521,12 @@ android {
             outputs.all {
                 val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
                 output.outputFileName = "app-clone.apk"
+            }
+        }
+        if (buildType.name == "armv7") {
+            outputs.all {
+                val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+                output.outputFileName = "Operit-armv7.apk"
             }
         }
     }
