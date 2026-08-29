@@ -4,6 +4,13 @@ project("mnn_jni")
 
 include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/operit_git_source.cmake")
 
+# -fno-emulated-tls 只对 aarch64 生效；32 位 ARM(armeabi-v7a) 必须用默认的
+# emulated TLS，否则链接时会报 undefined symbol: __tls_get_addr。
+# 目录级生效，覆盖 MNN 子工程的所有目标，保持 arm64 既有行为不变。
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    add_compile_options(-fno-emulated-tls)
+endif()
+
 # Pin MNN to the commit behind the latest stable 3.6.1 release. Using the
 # release commit keeps every native configure reproducible across machines.
 set(OPERIT_MNN_STABLE_COMMIT "d407447ed56c4121a11ccbd266dc184ca1ead0c2")
@@ -200,11 +207,8 @@ target_include_directories(MNNWrapper PRIVATE
     ${MNN_SOURCE_DIR}/3rd_party
 )
 
-# 添加编译选项以解决 TLS 问题
-target_compile_options(MNNWrapper PRIVATE -fno-emulated-tls)
-target_compile_options(MNN PRIVATE -fno-emulated-tls)
+# 解决 TLS 问题的编译选项已在文件顶部按 ABI 目录级设置（见 add_compile_options）。
 if(TARGET llm)
-    target_compile_options(llm PRIVATE -fno-emulated-tls)
     if(EXISTS "${MNN_SOURCE_DIR}/transformers/llm/engine/src/minja/chat_template.hpp")
         target_compile_options(MNNWrapper PRIVATE -DLLM_USE_MINJA)
         target_include_directories(MNNWrapper PRIVATE

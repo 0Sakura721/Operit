@@ -4,6 +4,12 @@ project("mmd_jni")
 
 include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/operit_git_source.cmake")
 
+# -fno-emulated-tls 只对 aarch64 生效；armeabi-v7a 用默认 emulated TLS，
+# 否则链接报 undefined symbol: __tls_get_addr。
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    add_compile_options(-fno-emulated-tls)
+endif()
+
 operit_prepare_git_source(
     OPERIT_SABA_SOURCE_DIR
     OPERIT_SABA_BINARY_DIR

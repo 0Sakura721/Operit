@@ -18,6 +18,12 @@ operit_prepare_git_source(
     "720d7fa4097f76e5d0eade5a92c1df87c1faf9d9"
 )
 
+# -fno-emulated-tls 只对 aarch64 生效；armeabi-v7a 用默认 emulated TLS，
+# 否则链接报 undefined symbol: __tls_get_addr。
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    add_compile_options(-fno-emulated-tls)
+endif()
+
 add_subdirectory("${OPERIT_LLAMA_CPP_SOURCE_DIR}" "${OPERIT_LLAMA_CPP_BINARY_DIR}" EXCLUDE_FROM_ALL)
 
 add_library(
