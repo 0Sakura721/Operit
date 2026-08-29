@@ -175,14 +175,14 @@ jobs:
         run: |
           set -euo pipefail
           FFMPEG_KIT_DIR="$HOME/build/ffmpeg-kit"
-          git clone --depth 1 --recurse-submodules \
+          git clone --depth 1 \
             https://github.com/CodeShipping/ffmpeg-kit-android-16KB.git "$FFMPEG_KIT_DIR"
           export ANDROID_SDK_ROOT_OVERRIDE="$ANDROID_HOME"
           export ANDROID_NDK_ROOT_OVERRIDE="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
           export JAVA_HOME_OVERRIDE="${JAVA_HOME}"
           # No WSL proxy on a CI runner.
           export OPERIT_PROXY_HOST=""
-          ./tools/ffmpeg/build_ffmpeg_kit_wsl.sh "$FFMPEG_KIT_DIR"
+          bash tools/ffmpeg/build_ffmpeg_kit_wsl.sh "$FFMPEG_KIT_DIR"
           aar_path="$(find "$FFMPEG_KIT_DIR" -name 'ffmpeg-kit-*.aar' \( -path '*prebuilt/bundle-android-aar*' -o -path '*build/outputs/aar*' \) | head -n 1 || true)"
           if [[ -z "$aar_path" ]]; then
             aar_path="$(find "$FFMPEG_KIT_DIR" -name '*.aar' | head -n 1 || true)"
