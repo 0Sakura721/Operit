@@ -1,5 +1,6 @@
 param(
-    [string[]]$Targets = @("aarch64-linux-android"),
+    # Build both 64-bit and 32-bit ARM targets so the app supports armeabi-v7a devices.
+    [string[]]$Targets = @("aarch64-linux-android", "armv7-linux-androideabi"),
     [string]$SdkDir = "",
     [int]$ApiLevel = 23
 )

@@ -5,6 +5,12 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+val operitAbis: List<String> =
+    ((rootProject.findProperty("operit.abis") as String? ?: "arm64-v8a"))
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
 android {
     namespace = "com.ai.assistance.llama"
     compileSdk = 36
@@ -17,7 +23,7 @@ android {
         consumerProguardFiles("consumer-rules.pro")
 
         ndk {
-            abiFilters.addAll(listOf("arm64-v8a"))
+            abiFilters.addAll(operitAbis)
         }
 
         externalNativeBuild {
@@ -27,6 +33,7 @@ android {
                     "-DANDROID_STL=c++_static",
                     "-DANDROID_PLATFORM=android-26",
                     "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                    "-DANDROID_ARM_NEON=TRUE",
                     "-DLLAMA_BUILD_COMMON=ON"
                 )
             }

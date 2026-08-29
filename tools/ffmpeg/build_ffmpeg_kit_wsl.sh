@@ -1,9 +1,30 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+# Builds the vendored FFmpegKit AAR from source for arm64-v8a AND armeabi-v7a.
+# NOTE: the upstream arthanecia/ffmpeg-kit repo was deleted. Use a mirror that
+# keeps the same `android.sh` + `scripts/` build API, e.g.
+#   git clone https://github.com/CodeShipping/ffmpeg-kit-android-16KB.git "$HOME/build/ffmpeg-kit"
+# then run this script, passing that directory as $1.
 FFMPEG_KIT_DIR="${1:-$HOME/build/ffmpeg-kit}"
+# Proxy is an optional convenience for WSL environments that reach the host
+# via a local proxy. When running on a Linux CI runner set OPERIT_PROXY_HOST=""
+# to go straight out. Empty host keeps every proxy variable unset.
 PROXY_HOST="${OPERIT_PROXY_HOST:-172.23.176.1}"
 PROXY_PORT="${OPERIT_PROXY_PORT:-7890}"
+
+if [[ -n "$PROXY_HOST" ]]; then
+  export http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+  export https_proxy="${http_proxy}"
+  export HTTP_PROXY="${http_proxy}"
+  export HTTPS_PROXY="${http_proxy}"
+  export GRADLE_OPTS="${GRADLE_OPTS:-} -Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT}"
+  export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT}"
+  unset ALL_PROXY
+  unset all_proxy
+  export NO_PROXY="localhost,127.0.0.1,::1"
+  export no_proxy="${NO_PROXY}"
+fi
 
 prepare_sources() {
   export BASEDIR="${FFMPEG_KIT_DIR}"
@@ -21,7 +42,6 @@ prepare_sources() {
   no_link_time_optimization
 
   disable_arch arm-v7a
-  disable_arch arm-v7a-neon
   disable_arch x86
   disable_arch x86-64
 
@@ -83,17 +103,6 @@ else
   export JAVA_HOME="/usr/lib/jvm/java-21-openjdk"
 fi
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${JAVA_HOME}/bin"
-
-export http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
-export https_proxy="${http_proxy}"
-export HTTP_PROXY="${http_proxy}"
-export HTTPS_PROXY="${http_proxy}"
-export GRADLE_OPTS="${GRADLE_OPTS:-} -Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT}"
-export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT}"
-unset ALL_PROXY
-unset all_proxy
-export NO_PROXY="localhost,127.0.0.1,::1"
-export no_proxy="${NO_PROXY}"
 
 cd "$FFMPEG_KIT_DIR"
 
@@ -185,7 +194,6 @@ exec ./android.sh \
   -s \
   --api-level=24 \
   --disable-arm-v7a \
-  --disable-arm-v7a-neon \
   --disable-x86 \
   --disable-x86-64 \
   --enable-fontconfig \

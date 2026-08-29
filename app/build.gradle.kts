@@ -147,25 +147,37 @@ fun signApkWithRotation(apkFile: File) {
     )
 }
 
+// The app ships one native library set per supported ABI. The ABI list is driven
+// by the `operit.abis` Gradle property so the historical arm64-only build is
+// unchanged by default, while `-Poperit.abis=armeabi-v7a,arm64-v8a` produces a
+// universal APK. Every externally built native library must exist for each ABI.
+val supportedAbis: List<String> =
+    ((rootProject.findProperty("operit.abis") as String? ?: "arm64-v8a"))
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
 val requiredExternallyBuiltNativeLibraries =
-    listOf(
-        file("src/main/jniLibs/arm64-v8a/liboperit_ripgrep.so"),
-    )
+    supportedAbis.flatMap { abi ->
+        listOf(file("src/main/jniLibs/$abi/liboperit_ripgrep.so"))
+    }
 
 val ffmpegKitLocalAar = file("libs/ffmpeg-kit-local.aar")
-val requiredFfmpegKitArm64Libraries =
-    setOf(
-        "jni/arm64-v8a/libavcodec.so",
-        "jni/arm64-v8a/libavdevice.so",
-        "jni/arm64-v8a/libavfilter.so",
-        "jni/arm64-v8a/libavformat.so",
-        "jni/arm64-v8a/libavutil.so",
-        "jni/arm64-v8a/libc++_shared.so",
-        "jni/arm64-v8a/libffmpegkit.so",
-        "jni/arm64-v8a/libffmpegkit_abidetect.so",
-        "jni/arm64-v8a/libswresample.so",
-        "jni/arm64-v8a/libswscale.so",
-    )
+val requiredFfmpegKitLibraries =
+    supportedAbis.flatMap { abi ->
+        listOf(
+            "jni/$abi/libavcodec.so",
+            "jni/$abi/libavdevice.so",
+            "jni/$abi/libavfilter.so",
+            "jni/$abi/libavformat.so",
+            "jni/$abi/libavutil.so",
+            "jni/$abi/libc++_shared.so",
+            "jni/$abi/libffmpegkit.so",
+            "jni/$abi/libffmpegkit_abidetect.so",
+            "jni/$abi/libswresample.so",
+            "jni/$abi/libswscale.so",
+        )
+    }
 
 val verifyExternallyBuiltNativeLibraries by tasks.registering {
     description = "Checks native libraries built outside Gradle before Android packaging."
@@ -175,7 +187,7 @@ val verifyExternallyBuiltNativeLibraries by tasks.registering {
         requiredExternallyBuiltNativeLibraries.map { library -> library.path },
     )
     inputs.property("ffmpegKitAar", ffmpegKitLocalAar.path)
-    inputs.property("ffmpegKitArm64Libraries", requiredFfmpegKitArm64Libraries)
+    inputs.property("ffmpegKitLibraries", requiredFfmpegKitLibraries)
     outputs.upToDateWhen { false }
 
     doLast {
@@ -197,12 +209,12 @@ val verifyExternallyBuiltNativeLibraries by tasks.registering {
 
         ZipFile(ffmpegKitLocalAar).use { archive ->
             val invalidEntries =
-                requiredFfmpegKitArm64Libraries.filter { entryName ->
+                requiredFfmpegKitLibraries.filter { entryName ->
                     val entry = archive.getEntry(entryName)
                     entry == null || entry.size <= 0L
                 }
             require(invalidEntries.isEmpty()) {
-                "FFmpegKit AAR is missing or contains empty arm64 native libraries: " +
+                "FFmpegKit AAR is missing or contains empty native libraries for the supported ABIs: " +
                     invalidEntries.joinToString()
             }
         }
@@ -406,13 +418,15 @@ android {
         }
         
         ndk {
-            // Keep native compilation aligned with the app's only supported ABI.
-            abiFilters.addAll(listOf("arm64-v8a"))
+            // Both 64-bit and 32-bit ARM devices are supported. Every native
+            // module in this project builds from source for both ABIs.
+            abiFilters.addAll(supportedAbis)
         }
 
         externalNativeBuild {
             cmake {
                 cppFlags("-std=c++17")
+                arguments("-DANDROID_ARM_NEON=TRUE")
             }
         }
 

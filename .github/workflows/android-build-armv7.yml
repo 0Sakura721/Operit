@@ -1,0 +1,247 @@
+name: Android Build (arm64-v8a + armeabi-v7a)
+
+# Manual-only: this builds ffmpeg-kit from source for two ABIs, so it is heavy
+# (~1-2h) and should only run on demand, not on every push.
+on:
+  workflow_dispatch:
+    inputs:
+      gradle_task:
+        description: Gradle task to run
+        required: true
+        default: assembleDebug
+        type: choice
+        options:
+          - assembleDebug
+          - assembleDebugClone
+      abis:
+        description: Android ABIs to build (comma separated)
+        required: false
+        default: armeabi-v7a,arm64-v8a
+        type: string
+      build_ffmpeg:
+        description: Build ffmpeg-kit from source for every enabled ABI (heavy, ~1-2h). Disable to use the vendored arm64-only AAR.
+        required: false
+        default: true
+        type: boolean
+      extra_armv7_dir:
+        description: |-
+          Path (inside the repo) to prebuilt armeabi-v7a extra native libs to copy into place.
+          Expected layout: <dir>/terminal/jniLibs/armeabi-v7a/{libbash,libbusybox,liboperit_proot,liboperit_loader,libsudo}.so
+          Leave empty to skip (the terminal/shell feature will simply be unavailable on armeabi-v7a).
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: android-build-armv7-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: '21'
+  NODE_VERSION: '22'
+  ANDROID_NDK_VERSION: '25.1.8937393'
+  ANDROID_CMAKE_VERSION: '3.22.1'
+  ANDROID_API_LEVEL: '26'
+  RUST_VERSION: '1.88.0'
+  MANUAL_DEPS_DIR: manual-deps
+
+jobs:
+  build:
+    name: Build ${{ inputs.abis }} APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Initialize terminal submodule
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule sync -- terminal
+          git submodule update --init --recursive --depth 1 terminal
+          git submodule status -- terminal
+
+      # The terminal submodule is a separate repo whose build file has no ABI
+      # property plumbing. Point its abiFilters at the root `operit.abis` property
+      # so it follows the ABIs selected for this build.
+      - name: Patch terminal submodule to honour operit.abis
+        shell: bash
+        run: |
+          set -euo pipefail
+          f=terminal/build.gradle.kts
+          if [[ -f "$f" ]]; then
+            sed -i 's/abiFilters += listOf("arm64-v8a")/abiFilters += (rootProject.findProperty("operit.abis") as String? ?: "arm64-v8a").split(",")/' "$f"
+            grep -n 'abiFilters' "$f"
+          else
+            echo "terminal/build.gradle.kts missing; skip" >&2
+          fi
+
+      - name: Set up JDK
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+
+      - name: Install Android SDK, NDK and CMake
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-34" \
+            "platforms;android-36" \
+            "build-tools;34.0.0" \
+            "build-tools;35.0.0" \
+            "ndk;$ANDROID_NDK_VERSION" \
+            "cmake;$ANDROID_CMAKE_VERSION"
+
+      # ---- External dependency archives ------------------------------------
+      # prepare_android_dependencies.py resets app/src/main/jniLibs and app/libs,
+      # so it must run BEFORE we install the ripgrep .so / ffmpeg AAR below.
+      - name: Download Android dependencies
+        run: bash ci/script/download_android_dependencies.sh full "$MANUAL_DEPS_DIR"
+
+      - name: Prepare Android dependencies
+        run: |
+          python3 ci/script/prepare_android_dependencies.py \
+            --profile full \
+            --archives "$MANUAL_DEPS_DIR" \
+            --repository "$GITHUB_WORKSPACE"
+
+      # ---- Native ripgrep for every enabled ABI ----------------------------
+      - name: Build native ripgrep (all enabled ABIs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android${ANDROID_API_LEVEL}-clang"
+          export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi${ANDROID_API_LEVEL}-clang"
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          # map ABI name -> rust target
+          declare -A T=( [arm64-v8a]=aarch64-linux-android [armeabi-v7a]=armv7-linux-androideabi [x86_64]=x86_64-linux-android [x86]=i686-linux-android )
+          for a in $(tr ',' ' ' <<< "${{ inputs.abis }}"); do
+            t="${T[$a]:?unsupported abi $a}"
+            rustup target add --toolchain "$RUST_VERSION" "$t"
+            cargo "+$RUST_VERSION" build --manifest-path tools/native_ripgrep/Cargo.toml --release --target "$t" --locked
+            install -Dm755 "tools/native_ripgrep/target/$t/release/liboperit_ripgrep.so" "app/src/main/jniLibs/$a/liboperit_ripgrep.so"
+            test -s "app/src/main/jniLibs/$a/liboperit_ripgrep.so"
+          done
+
+      # ---- Optional extra prebuilt armeabi-v7a libs ------------------------
+      - name: Copy extra prebuilt armeabi-v7a libs
+        if: ${{ inputs.extra_armv7_dir != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$GITHUB_WORKSPACE/${{ inputs.extra_armv7_dir }}"
+          if [[ ! -d "$src" ]]; then
+            echo "::warning::extra_armv7_dir not found: $src" >&2
+            exit 0
+          fi
+          mkdir -p terminal/src/main/jniLibs/armeabi-v7a
+          cp -f "$src"/terminal/jniLibs/armeabi-v7a/*.so terminal/src/main/jniLibs/armeabi-v7a/ 2>/dev/null || true
+          find terminal/src/main/jniLibs -path '*armeabi-v7a*' -name '*.so' | sort
+
+      # ---- FFmpeg-kit from source (every enabled ABI) -----------------------
+      # Heavy step (~1-2h). Built after prepare so it can overwrite the vendored
+      # arm64-only AAR from libs.zip with a multi-ABI AAR.
+      - name: Build ffmpeg-kit AAR (all enabled ABIs)
+        if: ${{ inputs.build_ffmpeg }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_KIT_DIR="$HOME/build/ffmpeg-kit"
+          git clone --depth 1 --recurse-submodules \
+            https://github.com/CodeShipping/ffmpeg-kit-android-16KB.git "$FFMPEG_KIT_DIR"
+          export ANDROID_SDK_ROOT_OVERRIDE="$ANDROID_HOME"
+          export ANDROID_NDK_ROOT_OVERRIDE="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+          export JAVA_HOME_OVERRIDE="${JAVA_HOME}"
+          # No WSL proxy on a CI runner.
+          export OPERIT_PROXY_HOST=""
+          ./tools/ffmpeg/build_ffmpeg_kit_wsl.sh "$FFMPEG_KIT_DIR"
+          aar_path="$(find "$FFMPEG_KIT_DIR" -name 'ffmpeg-kit-*.aar' \( -path '*prebuilt/bundle-android-aar*' -o -path '*build/outputs/aar*' \) | head -n 1 || true)"
+          if [[ -z "$aar_path" ]]; then
+            aar_path="$(find "$FFMPEG_KIT_DIR" -name '*.aar' | head -n 1 || true)"
+          fi
+          if [[ -z "$aar_path" ]]; then
+            echo "::error::ffmpeg-kit AAR was not produced" >&2
+            exit 1
+          fi
+          echo "Found ffmpeg-kit AAR: $aar_path"
+          install -Dm644 "$aar_path" app/libs/ffmpeg-kit-local.aar
+          unzip -l app/libs/ffmpeg-kit-local.aar | grep -E 'jni/(arm64-v8a|armeabi-v7a|x86_64)/' | sed 's/.*\///' | sort -u
+
+      - name: Install JavaScript dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g pnpm@10.34.5
+          npm ci --no-audit --no-fund
+          npm --prefix web-chat ci --no-audit --no-fund
+
+      - name: Build WebChat assets
+        run: |
+          npm run build:webchat
+
+      - name: Build bundled ToolPkg packages
+        run: |
+          npm run build:examples:github
+          python3 tools/example_packages/sync_example_packages.py --no-hot-reload
+
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Run Gradle build
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew "${{ inputs.gradle_task }}" -Poperit.abis="${{ inputs.abis }}" --stacktrace --no-daemon
+
+      - name: Upload Android reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: operit-android-reports-${{ github.run_number }}
+          path: |
+            app/build/reports/**
+            build/reports/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: operit-${{ inputs.abis }}-${{ github.run_number }}
+          path: |
+            app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14

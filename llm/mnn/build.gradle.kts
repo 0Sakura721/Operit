@@ -7,6 +7,15 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+// Android ABIs this module builds. Driven by the root `operit.abis` property so
+// the default arm64-only build stays unchanged; the armv7 workflow passes
+// `-Poperit.abis=armeabi-v7a,arm64-v8a`.
+val operitAbis: List<String> =
+    ((rootProject.findProperty("operit.abis") as String? ?: "arm64-v8a"))
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
 android {
     namespace = "com.ai.assistance.mnn"
     compileSdk = 36
@@ -19,8 +28,8 @@ android {
         consumerProguardFiles("consumer-rules.pro")
 
         ndk {
-            // 支持的 ABI（与主 app 保持一致）
-            abiFilters.addAll(listOf("arm64-v8a"))
+            // 支持的 ABI（由根项目 operit.abis 属性决定，与主 app 保持一致）
+            abiFilters.addAll(operitAbis)
         }
 
         externalNativeBuild {
@@ -30,6 +39,7 @@ android {
                     "-DANDROID_STL=c++_static",
                     "-DANDROID_PLATFORM=android-26",
                     "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                    "-DANDROID_ARM_NEON=TRUE",
                     "-DMNN_BUILD_SHARED_LIBS=ON",
                     "-DMNN_SEP_BUILD=OFF",
                     "-DMNN_BUILD_TOOLS=OFF",
