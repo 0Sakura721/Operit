@@ -1,0 +1,90 @@
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 06bb1e6..a285cc2 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -17,7 +17,12 @@ android {
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+         consumerProguardFiles("consumer-rules.pro")
+         ndk {
+-            abiFilters += listOf("arm64-v8a")
++            // Read ABIs from the root project property so this module follows the
++            // same `operit.abis` setting as the app module. Default keeps the
++            // historical arm64-only output; pass -Poperit.abis=armeabi-v7a,arm64-v8a
++            // to produce a dual-ABI build.
++            val operitAbis = (rootProject.findProperty("operit.abis") as String? ?: "arm64-v8a")
++            abiFilters.addAll(operitAbis.split(",").map { it.trim() })
+         }
+     }
+ 
+diff --git a/src/main/java/com/ai/assistance/operit/terminal/TerminalManager.kt b/src/main/java/com/ai/assistance/operit/terminal/TerminalManager.kt
+index 7fb3485..f21a5e2 100644
+--- a/src/main/java/com/ai/assistance/operit/terminal/TerminalManager.kt
++++ b/src/main/java/com/ai/assistance/operit/terminal/TerminalManager.kt
+@@ -1,6 +1,7 @@
+ package com.ai.assistance.operit.terminal
+ 
+ import android.content.Context
++import android.os.Build
+ import android.util.Log
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+@@ -118,7 +119,27 @@ class TerminalManager private constructor(
+         }
+ 
+         private const val TAG = "TerminalManager"
+-        private const val UBUNTU_FILENAME = "ubuntu-noble-aarch64-pd-v4.18.0.tar.xz"
++
++        /**
++         * Maps the device's primary Android ABI to the Ubuntu/Debian architecture
++         * name used in the rootfs asset filename.
++         */
++        private fun ubuntuArchForDevice(): String {
++            val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
++            return when (abi) {
++                "arm64-v8a" -> "aarch64"
++                "armeabi-v7a" -> "armhf"
++                "x86_64" -> "amd64"
++                "x86" -> "i386"
++                else -> "aarch64"
++            }
++        }
++
++        // Ubuntu rootfs asset is selected at runtime based on device ABI so that
++        // 32-bit ARM devices get an armhf rootfs instead of the arm64 one.
++        private val UBUNTU_FILENAME: String
++            get() = "ubuntu-noble-${ubuntuArchForDevice()}-pd-v4.18.0.tar.xz"
++
+         private const val MAX_HISTORY_ITEMS = 500
+         private const val MAX_OUTPUT_LINES_PER_ITEM = 1000
+         private const val TERMINAL_ENTER = "\r"
+diff --git a/src/main/java/com/ai/assistance/operit/terminal/utils/CacheManager.kt b/src/main/java/com/ai/assistance/operit/terminal/utils/CacheManager.kt
+index 47eaf20..1832b7f 100644
+--- a/src/main/java/com/ai/assistance/operit/terminal/utils/CacheManager.kt
++++ b/src/main/java/com/ai/assistance/operit/terminal/utils/CacheManager.kt
+@@ -1,6 +1,7 @@
+ package com.ai.assistance.operit.terminal.utils
+ 
+ import android.content.Context
++import android.os.Build
+ import android.util.Log
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+@@ -444,10 +445,17 @@ class CacheManager(private val context: Context) {
+         deleteBinLinks()
+ 
+         // 清理其他相关文件
++        val ubuntuArch = when (Build.SUPPORTED_ABIS.firstOrNull()) {
++            "arm64-v8a" -> "aarch64"
++            "armeabi-v7a" -> "armhf"
++            "x86_64" -> "amd64"
++            "x86" -> "i386"
++            else -> "aarch64"
++        }
+         val filesToClean = listOf(
+             "common.sh",
+             "proot-distro.zip",
+-            "ubuntu-noble-aarch64-pd-v4.18.0.tar.xz"
++            "ubuntu-noble-${ubuntuArch}-pd-v4.18.0.tar.xz"
+         )
+ 
+         filesToClean.forEach { fileName ->

@@ -41,7 +41,7 @@ prepare_sources() {
   optimize_for_speed
   no_link_time_optimization
 
-  disable_arch arm-v7a
+  enable_arch arm-v7a-neon
   disable_arch x86
   disable_arch x86-64
 
@@ -193,7 +193,7 @@ exec ./android.sh \
   -f \
   -s \
   --api-level=24 \
-  --disable-arm-v7a \
+  --enable-arm-v7a-neon \
   --disable-x86 \
   --disable-x86-64 \
   --enable-fontconfig \
