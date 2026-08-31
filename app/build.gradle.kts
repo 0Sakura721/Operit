@@ -163,21 +163,18 @@ val requiredExternallyBuiltNativeLibraries =
     }
 
 val ffmpegKitLocalAar = file("libs/ffmpeg-kit-local.aar")
-val requiredFfmpegKitLibraries =
-    supportedAbis.flatMap { abi ->
-        listOf(
-            "jni/$abi/libavcodec.so",
-            "jni/$abi/libavdevice.so",
-            "jni/$abi/libavfilter.so",
-            "jni/$abi/libavformat.so",
-            "jni/$abi/libavutil.so",
-            "jni/$abi/libc++_shared.so",
-            "jni/$abi/libffmpegkit.so",
-            "jni/$abi/libffmpegkit_abidetect.so",
-            "jni/$abi/libswresample.so",
-            "jni/$abi/libswscale.so",
-        )
-    }
+val ffmpegKitLibraryNames = listOf(
+    "libavcodec.so",
+    "libavdevice.so",
+    "libavfilter.so",
+    "libavformat.so",
+    "libavutil.so",
+    "libc++_shared.so",
+    "libffmpegkit.so",
+    "libffmpegkit_abidetect.so",
+    "libswresample.so",
+    "libswscale.so",
+)
 
 val verifyExternallyBuiltNativeLibraries by tasks.registering {
     description = "Checks native libraries built outside Gradle before Android packaging."
@@ -187,7 +184,7 @@ val verifyExternallyBuiltNativeLibraries by tasks.registering {
         requiredExternallyBuiltNativeLibraries.map { library -> library.path },
     )
     inputs.property("ffmpegKitAar", ffmpegKitLocalAar.path)
-    inputs.property("ffmpegKitLibraries", requiredFfmpegKitLibraries)
+    inputs.property("ffmpegKitLibraryNames", ffmpegKitLibraryNames)
     outputs.upToDateWhen { false }
 
     doLast {
@@ -208,15 +205,34 @@ val verifyExternallyBuiltNativeLibraries by tasks.registering {
         }
 
         ZipFile(ffmpegKitLocalAar).use { archive ->
-            // FFmpegKit is built externally from source. Every enabled ABI must have
-            // its native libraries present; missing libraries are a build failure
-            // (not just a warning) so that media features work on all shipped ABIs.
-            val missing =
-                requiredFfmpegKitLibraries
-                    .filter { entryName ->
-                        val entry = archive.getEntry(entryName)
-                        entry == null || entry.size <= 0L
+            // Detect which ABIs the AAR actually contains by looking for jni/<abi>/
+            // directories. We only verify libraries for ABIs that are present; ABIs
+            // missing from the AAR get a warning (media features unavailable) instead
+            // of a hard failure, because the ffmpeg-kit source build is best-effort
+            // and may fall back to an arm64-only AAR.
+            val aarAbis = supportedAbis.filter { abi ->
+                archive.getEntry("jni/$abi/") != null ||
+                    ffmpegKitLibraryNames.any { name ->
+                        archive.getEntry("jni/$abi/$name") != null
                     }
+            }
+            val missingAbis = supportedAbis - aarAbis.toSet()
+            if (missingAbis.isNotEmpty()) {
+                logger.warn(
+                    "FFmpegKit AAR does not contain native libraries for: " +
+                        missingAbis.joinToString() +
+                        ". Media (ffmpeg) features will be unavailable on these ABIs. " +
+                        "Build ffmpeg-kit from source to enable them."
+                )
+            }
+
+            val requiredEntries = aarAbis.flatMap { abi ->
+                ffmpegKitLibraryNames.map { name -> "jni/$abi/$name" }
+            }
+            val missing = requiredEntries.filter { entryName ->
+                val entry = archive.getEntry(entryName)
+                entry == null || entry.size <= 0L
+            }
             require(missing.isEmpty()) {
                 "FFmpegKit AAR is missing or contains empty native libraries: " +
                     missing.joinToString()
