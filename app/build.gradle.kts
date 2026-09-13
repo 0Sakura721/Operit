@@ -457,6 +457,12 @@ android {
 
     }
 
+    lint {
+        // Upstream ships translations (e.g. values-ja/strings.xml) whose keys are
+        // absent from the default locale. Keep ExtraTranslation non-fatal so fork
+        // release builds are not blocked by upstream translation churn.
+        disable += "ExtraTranslation"
+    }
     buildTypes {
         val releaseSigningConfig = signingConfigs.findByName("release")
 
