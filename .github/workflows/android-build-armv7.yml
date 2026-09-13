@@ -247,23 +247,21 @@ jobs:
         run: |
           set -euo pipefail
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          # For the release-signed armv7 build, generate a keystore and point the
-          # release signing config at it. The rotation props (V2/V3) are not set,
-          # and the armv7 build type avoids the rotation finalizer.
+          # For the release-signed armv7 build, restore the FIXED keystore from
+          # repository secrets so every build is signed with the same key and can
+          # be installed in-place as an upgrade. The rotation props (V2/V3) are
+          # not set, and the armv7 build type avoids the rotation finalizer.
           if [[ "${{ inputs.gradle_task }}" == *assembleArmv7* ]]; then
             KS="$RUNNER_TEMP/operit-release.keystore"
-            keytool -genkeypair -v \
-              -keystore "$KS" -storepass operit-armv7 -alias operit \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=0Sakura721, OU=Operit, O=Operit, L=NA, ST=NA, C=CN" \
-              -keypass operit-armv7 >/dev/null
+            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$KS"
+            test -s "$KS"
             {
               echo "RELEASE_STORE_FILE=$KS"
-              echo "RELEASE_STORE_PASSWORD=operit-armv7"
-              echo "RELEASE_KEY_ALIAS=operit"
-              echo "RELEASE_KEY_PASSWORD=operit-armv7"
+              echo "RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }}"
+              echo "RELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }}"
+              echo "RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}"
             } >> local.properties
-            echo "signing keystore generated at $KS"
+            echo "fixed signing keystore restored from repository secrets"
           fi
 
       - name: Run Gradle build
