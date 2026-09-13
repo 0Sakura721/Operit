@@ -34,7 +34,11 @@ internal object ToolPkgChatMessageHookBridge {
         syncToolPkgRegistrations(manager.getEnabledToolPkgContainerRuntimes())
     }
 
+    @Volatile
+    internal var onMessagePersistedDispatchedForTest: ((chatId: String, message: ChatMessage) -> Unit)? = null
+
     fun dispatchMessagePersisted(chatId: String, message: ChatMessage) {
+        onMessagePersistedDispatchedForTest?.invoke(chatId, message)
         val activeHooks = hooks
         if (activeHooks.isEmpty()) {
             return
@@ -76,15 +80,14 @@ internal object ToolPkgChatMessageHookBridge {
                         functionSource = hook.functionSource
                     )
                 }
-            }.sortedWith(
-                compareBy(
-                    ToolPkgChatMessageHookRegistration::containerPackageName,
-                    ToolPkgChatMessageHookRegistration::hookId
-                )
+            }.sortedByToolPkgLoadOrder(
+                activeContainers = activeContainers,
+                containerPackageName = ToolPkgChatMessageHookRegistration::containerPackageName,
+                registrationId = ToolPkgChatMessageHookRegistration::hookId
             )
     }
 
-    private fun buildChatMessageEventPayload(
+    internal fun buildChatMessageEventPayload(
         chatId: String,
         message: ChatMessage
     ): Map<String, Any?> =

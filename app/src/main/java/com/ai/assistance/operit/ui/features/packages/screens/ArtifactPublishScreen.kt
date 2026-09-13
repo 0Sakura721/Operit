@@ -68,6 +68,7 @@ import com.ai.assistance.operit.ui.features.packages.market.PublishArtifactSourc
 import com.ai.assistance.operit.ui.features.packages.market.PublishArtifactType
 import com.ai.assistance.operit.ui.features.packages.market.ToolPkgLogoAsset
 import com.ai.assistance.operit.ui.features.packages.market.PublishProgressStage
+import com.ai.assistance.operit.ui.features.packages.market.effectiveToolPkgApiVersion
 import com.ai.assistance.operit.ui.features.packages.market.isOperit2VersionAllowed
 import com.ai.assistance.operit.ui.features.packages.market.sameArtifactRuntimePackageId
 import com.ai.assistance.operit.ui.features.packages.screens.artifact.viewmodel.ArtifactMarketViewModel
@@ -86,6 +87,7 @@ private data class ArtifactPublishEditInfo(
     val categoryId: String,
     val allowPublicUpdates: Boolean,
     val version: String,
+    val apiVersion: String?,
     val minSupportedAppVersion: String?,
     val maxSupportedAppVersion: String?,
     val runtimePackageId: String,
@@ -105,6 +107,7 @@ private fun com.ai.assistance.operit.data.api.MarketV2Entry.toArtifactPublishEdi
         categoryId = categoryId,
         allowPublicUpdates = allowPublicUpdates,
         version = versionValue?.version.orEmpty(),
+        apiVersion = versionValue?.apiVersion,
         minSupportedAppVersion = versionValue?.minAppVer,
         maxSupportedAppVersion = versionValue?.maxAppVer,
         runtimePackageId = versionValue?.runtimePackageId.orEmpty(),
@@ -377,6 +380,12 @@ fun ArtifactPublishScreen(
             null
         }
     val isToolPkgVersionLocked = !isEditMode && toolPkgManifestVersion != null
+    val toolPkgApiVersion =
+        when {
+            selectedType != PublishArtifactType.PACKAGE -> null
+            isEditMode -> (initialInfo?.apiVersion).effectiveToolPkgApiVersion()
+            else -> (selectedArtifact?.apiVersion).effectiveToolPkgApiVersion()
+        }
     val effectiveVersion =
         if (isToolPkgVersionLocked) {
             toolPkgManifestVersion.orEmpty()
@@ -1080,6 +1089,19 @@ fun ArtifactPublishScreen(
                 }
             }
         )
+        toolPkgApiVersion?.let { apiVersionValue ->
+            OutlinedTextField(
+                value = apiVersionValue,
+                onValueChange = {},
+                label = { Text(stringResource(R.string.toolpkg_api_version_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                readOnly = true,
+                supportingText = {
+                    Text(stringResource(R.string.artifact_publish_toolpkg_api_version_readonly))
+                }
+            )
+        }
         OutlinedTextField(
             value = minSupportedAppVersion,
             onValueChange = {
@@ -1220,6 +1242,14 @@ fun ArtifactPublishScreen(
                             Text(stringResource(R.string.detail_colon, detail))
                         }
                         Text(stringResource(R.string.market_detail_category_label) + ": " + categoryId)
+                        if (initialInfo?.type == PublishArtifactType.PACKAGE) {
+                            Text(
+                                stringResource(
+                                    R.string.toolpkg_api_version_value,
+                                    (initialInfo?.apiVersion).effectiveToolPkgApiVersion()
+                                )
+                            )
+                        }
                         Text(
                             stringResource(
                                 R.string.supported_app_versions_colon,
@@ -1241,6 +1271,9 @@ fun ArtifactPublishScreen(
                         }
                         Text(stringResource(R.string.market_detail_category_label) + ": " + categoryId)
                         Text(stringResource(R.string.version_colon, effectiveVersion))
+                        toolPkgApiVersion?.let { apiVersionValue ->
+                            Text(stringResource(R.string.toolpkg_api_version_value, apiVersionValue))
+                        }
                         if (selectedType == PublishArtifactType.PACKAGE && displayedLogo != null) {
                             Text(
                                 stringResource(
@@ -1459,6 +1492,7 @@ fun ArtifactPublishScreen(
             description = description,
             detail = detail,
             version = effectiveVersion,
+            apiVersion = toolPkgApiVersion,
             author = selectedArtifact?.author?.firstOrNull().orEmpty(),
             logoAsset = displayedLogo,
             onDismiss = { showMarketPreview = false }

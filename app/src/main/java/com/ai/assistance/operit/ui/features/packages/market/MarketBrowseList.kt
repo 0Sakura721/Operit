@@ -68,6 +68,7 @@ data class MarketBrowseCardModel(
     val title: String,
     val description: String,
     val logoUrl: String? = null,
+    val toolPkgApiVersion: String? = null,
     val ownerUsername: String = "",
     val thumbsUpCount: Int = 0,
     val heartCount: Int = 0,
@@ -377,6 +378,16 @@ fun MarketBrowseCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                model.toolPkgApiVersion?.let { apiVersion ->
+                    Text(
+                        text = stringResource(R.string.pkg_toolpkg_api_version, apiVersion),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 if (model.description.isNotBlank()) {
                     Spacer(modifier = Modifier.height(6.dp))

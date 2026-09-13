@@ -99,6 +99,22 @@ internal data class ToolPkgFunctionHookRuntime(
     val functionSource: String? = null
 )
 
+internal data class ToolPkgChatMessageMenuDialogRuntime(
+    val screen: String,
+    val title: LocalizedText
+)
+
+internal data class ToolPkgChatMessageMenuItemRuntime(
+    val id: String,
+    val title: LocalizedText,
+    val icon: String? = null,
+    val order: Int = 0,
+    val senders: List<String> = emptyList(),
+    val function: String,
+    val functionSource: String? = null,
+    val dialog: ToolPkgChatMessageMenuDialogRuntime? = null
+)
+
 internal data class ToolPkgAiProviderHandlerRuntime(
     val function: String,
     val functionSource: String? = null
@@ -137,6 +153,8 @@ internal data class ToolPkgContainerRuntime(
     val displayName: LocalizedText,
     val description: LocalizedText,
     val version: String,
+    val apiVersion: String,
+    val requires: List<ToolPkgManifestRequirement>,
     val author: List<String>,
     val mainEntry: String,
     val sourceType: ToolPkgSourceType,
@@ -157,6 +175,8 @@ internal data class ToolPkgContainerRuntime(
     val chatInputHooks: List<ToolPkgFunctionHookRuntime>,
     val chatViewHooks: List<ToolPkgFunctionHookRuntime>,
     val chatMessageHooks: List<ToolPkgFunctionHookRuntime>,
+    val chatMessageMenuItems: List<ToolPkgChatMessageMenuItemRuntime>,
+    val chatRuntimeHooks: List<ToolPkgFunctionHookRuntime>,
     val toolLifecycleHooks: List<ToolPkgFunctionHookRuntime>,
     val promptInputHooks: List<ToolPkgFunctionHookRuntime>,
     val promptHistoryHooks: List<ToolPkgFunctionHookRuntime>,
@@ -182,6 +202,8 @@ internal data class ToolPkgManifest(
     @SerialName("schema_version") val schemaVersion: Int = 1,
     @SerialName("toolpkg_id") val toolpkgId: String,
     val version: String = "",
+    @SerialName("api_version") val apiVersion: String = ToolPkgApiCompatibility.LEGACY_API_VERSION,
+    val requires: List<ToolPkgManifestRequirement> = emptyList(),
     val main: String = "",
     @SerialName("display_name") val displayName: LocalizedText = LocalizedText.of(""),
     val description: LocalizedText = LocalizedText.of(""),
@@ -275,6 +297,22 @@ internal data class ToolPkgRegisteredFunctionHook(
     val functionSource: String? = null
 )
 
+internal data class ToolPkgRegisteredChatMessageMenuDialog(
+    val screen: String,
+    val title: LocalizedText
+)
+
+internal data class ToolPkgRegisteredChatMessageMenuItem(
+    val id: String,
+    val title: LocalizedText,
+    val icon: String? = null,
+    val order: Int = 0,
+    val senders: List<String> = emptyList(),
+    val function: String,
+    val functionSource: String? = null,
+    val dialog: ToolPkgRegisteredChatMessageMenuDialog? = null
+)
+
 internal data class ToolPkgRegisteredAiProviderHandler(
     val function: String,
     val functionSource: String? = null
@@ -309,6 +347,8 @@ internal data class ToolPkgMainRegistration(
     val chatInputHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
     val chatViewHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
     val chatMessageHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
+    val chatMessageMenuItems: List<ToolPkgRegisteredChatMessageMenuItem> = emptyList(),
+    val chatRuntimeHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
     val toolLifecycleHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
     val promptInputHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
     val promptHistoryHooks: List<ToolPkgRegisteredFunctionHook> = emptyList(),
@@ -366,7 +406,7 @@ internal object ToolPkgArchiveParser {
         sourcePath: String,
         isBuiltIn: Boolean,
         parseJsPackage: (String, (String, String) -> Unit) -> ToolPackage?,
-        parseMainRegistration: (String, String, String) -> ToolPkgMainRegistrationParseResult,
+        parseMainRegistration: (String, String, String, String) -> ToolPkgMainRegistrationParseResult,
         reportPackageLoadError: (String, String) -> Unit
     ): ToolPkgLoadResult {
         val manifestEntryName = findManifestEntry(entryIndex.entryNames)
@@ -375,6 +415,8 @@ internal object ToolPkgArchiveParser {
             readEntryText(manifestEntryName)
                 ?: throw IllegalArgumentException("Failed to read manifest entry")
         val manifest = parseToolPkgManifest(manifestText, manifestEntryName)
+        val apiVersion = ToolPkgApiCompatibility.requireSupported(manifest.apiVersion)
+        val requires = normalizeRequirements("manifest.requires", manifest.requires)
         val manifestBasePath = manifestEntryName.substringBeforeLast('/', missingDelimiterValue = "")
 
         if (manifest.toolpkgId.isBlank()) {
@@ -650,7 +692,12 @@ internal object ToolPkgArchiveParser {
                 LocalizedText.of(manifest.toolpkgId)
             }
         val mainRegistrationResult =
-            parseMainRegistration(mainScriptText, manifest.toolpkgId, normalizedMainEntry)
+            parseMainRegistration(
+                mainScriptText,
+                manifest.toolpkgId,
+                normalizedMainEntry,
+                apiVersion.toString()
+            )
         val mainRegistration =
             when (mainRegistrationResult) {
                 is ToolPkgMainRegistrationParseResult.Success -> mainRegistrationResult.registration
@@ -1011,6 +1058,90 @@ internal object ToolPkgArchiveParser {
             )
         }
 
+        val chatMessageMenuItems = mutableListOf<ToolPkgChatMessageMenuItemRuntime>()
+        val chatMessageMenuItemIds = linkedSetOf<String>()
+        mainRegistration.chatMessageMenuItems.forEachIndexed { index, item ->
+            val id = item.id.trim()
+            if (id.isBlank()) {
+                throw IllegalArgumentException("$TOOLPKG_REGISTRATION_CHAT_MESSAGE_MENU_ITEM[$index].id is required")
+            }
+            if (!chatMessageMenuItemIds.add(id.lowercase())) {
+                throw IllegalArgumentException("Duplicate chat message menu item id: $id")
+            }
+
+            val function = item.function.trim()
+            if (function.isBlank()) {
+                throw IllegalArgumentException("$TOOLPKG_REGISTRATION_CHAT_MESSAGE_MENU_ITEM[$index].function is required")
+            }
+
+            val senders =
+                item.senders
+                    .map { sender -> sender.trim().lowercase() }
+                    .filter { sender -> sender.isNotBlank() }
+                    .distinct()
+            val unsupportedSender = senders.firstOrNull { sender -> sender != "user" && sender != "ai" }
+            if (unsupportedSender != null) {
+                throw IllegalArgumentException(
+                    "$TOOLPKG_REGISTRATION_CHAT_MESSAGE_MENU_ITEM[$index].senders contains unsupported sender: $unsupportedSender"
+                )
+            }
+
+            val dialog =
+                item.dialog?.let { dialog ->
+                    val normalizedScreenPath =
+                        normalizeZipEntryPath(dialog.screen)
+                            ?: throw IllegalArgumentException(
+                                "$TOOLPKG_REGISTRATION_CHAT_MESSAGE_MENU_ITEM[$index].dialog.screen is invalid: ${dialog.screen}"
+                            )
+                    if (!entryIndex.containsEntry(normalizedScreenPath)) {
+                        throw IllegalArgumentException(
+                            "$TOOLPKG_REGISTRATION_CHAT_MESSAGE_MENU_ITEM[$index].dialog.screen not found: ${dialog.screen}"
+                        )
+                    }
+                    ToolPkgChatMessageMenuDialogRuntime(
+                        screen = normalizedScreenPath,
+                        title = dialog.title
+                    )
+                }
+
+            chatMessageMenuItems.add(
+                ToolPkgChatMessageMenuItemRuntime(
+                    id = id,
+                    title = item.title,
+                    icon = item.icon,
+                    order = item.order,
+                    senders = senders,
+                    function = function,
+                    functionSource = item.functionSource,
+                    dialog = dialog
+                )
+            )
+        }
+
+        val chatRuntimeHooks = mutableListOf<ToolPkgFunctionHookRuntime>()
+        val chatRuntimeIds = linkedSetOf<String>()
+        mainRegistration.chatRuntimeHooks.forEachIndexed { index, hook ->
+            val id = hook.id.trim()
+            if (id.isBlank()) {
+                throw IllegalArgumentException("$TOOLPKG_REGISTRATION_CHAT_RUNTIME_HOOK[$index].id is required")
+            }
+            if (!chatRuntimeIds.add(id.lowercase())) {
+                throw IllegalArgumentException("Duplicate chat runtime hook id: $id")
+            }
+
+            val function = hook.function.trim()
+            if (function.isBlank()) {
+                throw IllegalArgumentException("$TOOLPKG_REGISTRATION_CHAT_RUNTIME_HOOK[$index].function is required")
+            }
+            chatRuntimeHooks.add(
+                ToolPkgFunctionHookRuntime(
+                    id = id,
+                    function = function,
+                    functionSource = hook.functionSource
+                )
+            )
+        }
+
         val toolLifecycleHooks = mutableListOf<ToolPkgFunctionHookRuntime>()
         val toolLifecycleIds = linkedSetOf<String>()
         mainRegistration.toolLifecycleHooks.forEachIndexed { index, hook ->
@@ -1282,6 +1413,7 @@ internal object ToolPkgArchiveParser {
         val containerPackage =
             ToolPackage(
                 name = manifest.toolpkgId,
+                version = manifest.version,
                 description = containerDescription,
                 tools = emptyList(),
                 isBuiltIn = isBuiltIn,
@@ -1297,6 +1429,8 @@ internal object ToolPkgArchiveParser {
                 displayName = containerDisplayName,
                 description = containerDescription,
                 version = manifest.version,
+                apiVersion = apiVersion.toString(),
+                requires = requires,
                 author = manifest.author,
                 mainEntry = normalizedMainEntry,
                 sourceType = sourceType,
@@ -1317,6 +1451,8 @@ internal object ToolPkgArchiveParser {
                 chatInputHooks = chatInputHooks,
                 chatViewHooks = chatViewHooks,
                 chatMessageHooks = chatMessageHooks,
+                chatMessageMenuItems = chatMessageMenuItems,
+                chatRuntimeHooks = chatRuntimeHooks,
                 toolLifecycleHooks = toolLifecycleHooks,
                 promptInputHooks = promptInputHooks,
                 promptHistoryHooks = promptHistoryHooks,
@@ -1506,26 +1642,28 @@ internal object ToolPkgArchiveParser {
     }
 
     fun readToolPkgManifestPreview(inputStreamFactory: () -> InputStream): ToolPkgManifestPreview? {
+        val manifests = linkedMapOf<String, String>()
+
         inputStreamFactory().use { input ->
             ZipInputStream(input.buffered()).use { zipInput ->
                 while (true) {
                     val entry = zipInput.nextEntry ?: break
                     val normalizedName = normalizeZipEntryPath(entry.name)
                     if (!entry.isDirectory && normalizedName != null && isManifestEntryName(normalizedName)) {
-                        val manifestText =
-                            zipInput.bufferedReader(StandardCharsets.UTF_8).use { reader ->
-                                reader.readText()
-                            }
-                        return ToolPkgManifestPreview(
-                            entryName = normalizedName,
-                            manifest = parseToolPkgManifest(manifestText, normalizedName)
-                        )
+                        // Do not close a reader over the shared ZipInputStream.
+                        manifests[normalizedName] = String(zipInput.readBytes(), StandardCharsets.UTF_8)
                     }
                     zipInput.closeEntry()
                 }
             }
         }
-        return null
+
+        val entryName = findManifestEntry(manifests.keys) ?: return null
+        val manifestText = manifests.getValue(entryName)
+        return ToolPkgManifestPreview(
+            entryName = entryName,
+            manifest = parseToolPkgManifest(manifestText, entryName)
+        )
     }
 
     fun extractZipEntriesFromExternal(zipFilePath: String, destinationDir: File): Boolean {
@@ -1588,22 +1726,38 @@ internal object ToolPkgArchiveParser {
         return true
     }
 
-    private fun findManifestEntry(entryNames: Collection<String>): String? {
-        val exactHjson = entryNames.firstOrNull { it.equals("manifest.hjson", ignoreCase = true) }
-        if (exactHjson != null) return exactHjson
+    internal fun findManifestEntry(entryNames: Collection<String>): String? {
+        return entryNames
+            .asSequence()
+            .mapNotNull(::normalizeZipEntryPath)
+            .filter(::isManifestEntryName)
+            .minWithOrNull(Comparator(::compareManifestEntries))
+    }
 
-        val exactJson = entryNames.firstOrNull { it.equals("manifest.json", ignoreCase = true) }
-        if (exactJson != null) return exactJson
+    private fun compareManifestEntries(left: String, right: String): Int {
+        return compareValuesBy(
+            left,
+            right,
+            ::manifestEntryPriority,
+            ::manifestEntryDepth,
+            { it.lowercase() },
+            { it }
+        )
+    }
 
-        val nestedHjson =
-            entryNames.firstOrNull {
-                it.substringAfterLast('/').equals("manifest.hjson", ignoreCase = true)
-            }
-        if (nestedHjson != null) return nestedHjson
-
-        return entryNames.firstOrNull {
-            it.substringAfterLast('/').equals("manifest.json", ignoreCase = true)
+    private fun manifestEntryPriority(entryName: String): Int {
+        val nested = entryName.contains('/')
+        val hjson = entryName.endsWith(".hjson", ignoreCase = true)
+        return when {
+            !nested && hjson -> 0
+            !nested -> 1
+            hjson -> 2
+            else -> 3
         }
+    }
+
+    private fun manifestEntryDepth(entryName: String): Int {
+        return entryName.count { it == '/' }
     }
 
     private fun isManifestEntryName(entryName: String): Boolean {
@@ -1624,6 +1778,42 @@ internal object ToolPkgArchiveParser {
 
         val jsonConfig = Json { ignoreUnknownKeys = true }
         return jsonConfig.decodeFromString<ToolPkgManifest>(manifestJson)
+    }
+
+    private fun normalizeRequirements(
+        fieldName: String,
+        requirements: List<ToolPkgManifestRequirement>
+    ): List<ToolPkgManifestRequirement> {
+        val normalized = requirements.mapIndexed { index, requirement ->
+            val id = requirement.id.trim()
+            val description = requirement.description.trim()
+            val minVersion = requirement.minVersion?.trim()?.takeIf(String::isNotBlank)
+            val maxVersion = requirement.maxVersion?.trim()?.takeIf(String::isNotBlank)
+
+            require(id.isNotBlank()) {
+                "$fieldName[$index].id is required"
+            }
+            require(description.isNotBlank()) {
+                "$fieldName[$index].description is required"
+            }
+
+            val parsedMinimum = minVersion?.let { version -> ToolPkgPackageVersion.parse(version) }
+            val parsedMaximum = maxVersion?.let { version -> ToolPkgPackageVersion.parse(version) }
+            require(parsedMinimum == null || parsedMaximum == null || parsedMinimum <= parsedMaximum) {
+                "$fieldName[$index] has a minimum version above its maximum version"
+            }
+
+            requirement.copy(
+                id = id,
+                description = description,
+                minVersion = minVersion,
+                maxVersion = maxVersion
+            )
+        }
+        require(normalized.distinctBy { it.id.lowercase() }.size == normalized.size) {
+            "$fieldName cannot contain duplicate package IDs"
+        }
+        return normalized
     }
 
     private fun hasLocalizedTextContent(text: LocalizedText?): Boolean {

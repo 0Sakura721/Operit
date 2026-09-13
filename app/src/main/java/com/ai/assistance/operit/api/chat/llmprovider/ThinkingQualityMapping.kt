@@ -53,17 +53,25 @@ internal data class ThinkingQualityMapping(
 
 internal object ThinkingQualityMappingRegistry {
     fun resolve(providerTypeId: String, modelName: String): ThinkingQualityMapping =
-        resolve(providerTypeId, modelName, "")
+        resolve(providerTypeId, modelName, "", "")
 
     fun resolve(
         providerTypeId: String,
         modelName: String,
         thinkingConfigurations: String
+    ): ThinkingQualityMapping =
+        resolve(providerTypeId, modelName, "", thinkingConfigurations)
+
+    fun resolve(
+        providerTypeId: String,
+        modelName: String,
+        apiEndpoint: String,
+        thinkingConfigurations: String
     ): ThinkingQualityMapping {
         // The JSON array order is the user-visible priority order: the first enabled rule
-        // matching both provider and model wins, and later rules are not evaluated.
+        // matching provider, model, and endpoint wins, and later rules are not evaluated.
         return parseRules(thinkingConfigurations)
-            .firstOrNull { it.matches(providerTypeId, modelName) }
+            .firstOrNull { it.matches(providerTypeId, modelName, apiEndpoint) }
             ?.toMapping()
             ?: ThinkingQualityMapping.unsupported()
     }
@@ -74,7 +82,7 @@ internal object ThinkingQualityMappingRegistry {
         apiEndpoint: String,
         thinkingConfigurations: String = ""
     ): ThinkingQualityMapping {
-        return resolve(providerTypeId, modelName, thinkingConfigurations)
+        return resolve(providerTypeId, modelName, apiEndpoint, thinkingConfigurations)
     }
 
     fun validateConfigurations(thinkingConfigurations: String) {
@@ -125,17 +133,37 @@ private data class ThinkingConfigurationRule(
     val control: ThinkingQualityControl,
     val parameterLabel: String,
     val reasoningRequired: Boolean,
+    val endpointSuffixes: List<String>,
     val disabledValue: String?,
     val enabledActions: List<ThinkingQualityJsonAction>,
     val disabledActions: List<ThinkingQualityJsonAction>,
     val options: List<ThinkingQualityOption>,
 ) {
-    fun matches(providerTypeId: String, modelName: String): Boolean {
+    fun matches(providerTypeId: String, modelName: String, apiEndpoint: String): Boolean {
         val provider = providerTypeId.trim().uppercase(Locale.US)
         val providerMatches =
             providerIds.isEmpty() || providerIds.any { it.equals(provider, ignoreCase = true) }
-        return providerMatches && matcher.matches(modelName)
+        return providerMatches && matcher.matches(modelName) && endpointMatches(apiEndpoint)
     }
+
+    private fun endpointMatches(apiEndpoint: String): Boolean {
+        if (endpointSuffixes.isEmpty()) return true
+
+        val endpoint = normalizedEndpoint(apiEndpoint)
+        if (endpoint.isEmpty()) return false
+
+        return endpointSuffixes.any { suffix ->
+            val normalizedSuffix = normalizedEndpoint(suffix)
+            normalizedSuffix.isNotEmpty() && endpoint.endsWith(normalizedSuffix)
+        }
+    }
+
+    private fun normalizedEndpoint(value: String): String =
+        value.trim()
+            .substringBefore('?')
+            .substringBefore('#')
+            .trimEnd('/')
+            .lowercase(Locale.US)
 
     fun toMapping(): ThinkingQualityMapping =
         ThinkingQualityMapping(
@@ -170,6 +198,8 @@ private data class ThinkingConfigurationRule(
                 },
                 parameterLabel = parameterLabel,
                 reasoningRequired = json.optBoolean("required", json.optBoolean("reasoningRequired", false)),
+                endpointSuffixes = (json.optJSONObject("match") ?: JSONObject()).stringList("endpointSuffix") +
+                    json.stringList("endpointSuffix"),
                 disabledValue = disabledValue,
                 enabledActions = enabledActions,
                 disabledActions = disabledActions,
@@ -264,7 +294,12 @@ internal object ThinkingConfigurationApplier {
         enableThinking: Boolean,
         optionId: String,
     ): ThinkingQualityMapping {
-        val mapping = ThinkingQualityMappingRegistry.resolve(providerTypeId, modelName, thinkingConfigurations)
+        val mapping = ThinkingQualityMappingRegistry.resolve(
+            providerTypeId,
+            modelName,
+            apiEndpoint,
+            thinkingConfigurations
+        )
         if (mapping.control == ThinkingQualityControl.UNSUPPORTED) return mapping
 
         val thinkingEnabled = enableThinking || mapping.reasoningRequired

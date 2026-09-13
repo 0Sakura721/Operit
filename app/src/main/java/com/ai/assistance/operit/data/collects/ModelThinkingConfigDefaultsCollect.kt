@@ -11,6 +11,26 @@ object ModelThinkingConfigDefaults {
                   {
                     "id": "openai-chat-reasoning-effort",
                     "providers": ["OPENAI", "OPENAI_GENERIC"],
+                    "match": {"modelRegex": ["(?:^|/)(?:o[1-9]|gpt-[5-9]|gpt-oss|codex)"]},
+                    "control": "levels",
+                    "parameterLabel": "reasoning_effort",
+                    "options": [
+                      {"id": "low", "label": "low", "path": "reasoning_effort", "value": "low"},
+                      {"id": "medium", "label": "medium", "path": "reasoning_effort", "value": "medium"},
+                      {"id": "high", "label": "high", "path": "reasoning_effort", "value": "high"},
+                      {"id": "xhigh", "label": "xhigh", "path": "reasoning_effort", "value": "xhigh"},
+                      {"id": "max", "label": "max", "path": "reasoning_effort", "value": "max"}
+                    ]
+                  },
+                  {
+                    "id": "openai-chat-non-reasoning-models",
+                    "providers": ["OPENAI_GENERIC"],
+                    "match": {"modelRegex": ["(?:^|/)(?:chatgpt-|gpt-3|gpt-4)"]},
+                    "control": "unsupported"
+                  },
+                  {
+                    "id": "openai-compatible-chat-reasoning-effort",
+                    "providers": ["OPENAI_GENERIC"],
                     "control": "levels",
                     "parameterLabel": "reasoning_effort",
                     "options": [
@@ -65,6 +85,7 @@ object ModelThinkingConfigDefaults {
                   {
                     "id": "gemini-thinking-level",
                     "providers": ["GOOGLE", "GEMINI_GENERIC"],
+                    "match": {"modelRegex": ["(?:^|/)gemini-(?:[3-9]|[1-9][0-9])(?:[.-]|$)"]},
                     "control": "levels",
                     "parameterLabel": "thinkingLevel",
                     "required": true,
@@ -76,6 +97,21 @@ object ModelThinkingConfigDefaults {
                       {"id": "LOW", "label": "LOW", "path": "generationConfig.thinkingConfig.thinkingLevel", "value": "LOW"},
                       {"id": "MEDIUM", "label": "MEDIUM", "path": "generationConfig.thinkingConfig.thinkingLevel", "value": "MEDIUM"},
                       {"id": "HIGH", "label": "HIGH", "path": "generationConfig.thinkingConfig.thinkingLevel", "value": "HIGH"}
+                    ]
+                  },
+                  {
+                    "id": "deepseek-responses-reasoning-effort",
+                    "providers": ["DEEPSEEK"],
+                    "match": {"endpointSuffix": ["/responses"]},
+                    "control": "levels",
+                    "parameterLabel": "reasoning.effort",
+                    "disable": [
+                      {"path": "reasoning.effort", "value": "none"}
+                    ],
+                    "options": [
+                      {"id": "low", "label": "low", "path": "reasoning.effort", "value": "low"},
+                      {"id": "high", "label": "high", "path": "reasoning.effort", "value": "high"},
+                      {"id": "max", "label": "max", "path": "reasoning.effort", "value": "max"}
                     ]
                   },
                   {
@@ -118,6 +154,15 @@ object ModelThinkingConfigDefaults {
                     "parameterLabel": "thinking.type",
                     "enable": [{"path": "thinking.type", "value": "enabled"}],
                     "disable": [{"path": "thinking.type", "value": "disabled"}]
+                  },
+                  {
+                    "id": "aliyun-qwen3-thinking-toggle",
+                    "providers": ["ALIYUN"],
+                    "match": {"modelRegex": ["(?:^|/)qwen3(?:[.-]|$)"]},
+                    "control": "toggle_only",
+                    "parameterLabel": "enable_thinking",
+                    "enable": [{"path": "enable_thinking", "value": true}],
+                    "disable": [{"path": "enable_thinking", "value": false}]
                   },
                   {
                     "id": "siliconflow-deepseek-v4-effort",

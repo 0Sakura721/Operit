@@ -310,6 +310,11 @@ fun PackageDetailsDialog(
                                     )
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = stringResource(R.string.pkg_toolpkg_api_version, details.apiVersion),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                         if (details.version.isNotBlank()) {
                                             Text(
                                                 text = stringResource(R.string.pkg_toolpkg_version, details.version),
@@ -342,6 +347,36 @@ fun PackageDetailsDialog(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        if (details.requires.isNotEmpty()) {
+                                            Text(
+                                                text = stringResource(
+                                                    R.string.pkg_toolpkg_requires,
+                                                    details.requires.joinToString(", ") { requirement ->
+                                                        buildString {
+                                                            append(requirement.id)
+                                                            if (requirement.description.isNotBlank()) {
+                                                                append(" — ")
+                                                                append(requirement.description)
+                                                            }
+                                                            val versionRange = when {
+                                                                requirement.minVersion != null && requirement.maxVersion != null ->
+                                                                    "${requirement.minVersion} - ${requirement.maxVersion}"
+                                                                requirement.minVersion != null -> ">= ${requirement.minVersion}"
+                                                                requirement.maxVersion != null -> "<= ${requirement.maxVersion}"
+                                                                else -> null
+                                                            }
+                                                            if (versionRange != null) {
+                                                                append(" [")
+                                                                append(versionRange)
+                                                                append("]")
+                                                            }
+                                                        }
+                                                    }
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
 

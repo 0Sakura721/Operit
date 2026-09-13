@@ -54,8 +54,15 @@ object ToolExecutionManager {
         val displayName: String
     )
 
-    private fun ensureEndsWithNewline(content: String): String {
-        return if (content.endsWith("\n")) content else "$content\n"
+    /**
+     * Tool round markup is injected into the assistant stream right after model text that usually
+     * ends mid-line. The XML block detector only opens a block at a line boundary, so markup glued
+     * onto the previous character is rendered as plain model text, and is re-parsed out of history
+     * as assistant text instead of a tool result. Keep every injected block on its own line.
+     */
+    internal fun ensureOwnLine(content: String): String {
+        val withLeadingBreak = if (content.startsWith("\n")) content else "\n$content"
+        return if (withLeadingBreak.endsWith("\n")) withLeadingBreak else "$withLeadingBreak\n"
     }
 
     private fun resolveToolTarget(tool: AITool): ResolvedToolTarget {
@@ -198,7 +205,7 @@ object ToolExecutionManager {
     }
 
     private fun isEnglishLanguage(context: Context): Boolean {
-        return LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        return !LocaleUtils.usesChineseContent(context)
     }
 
     private fun buildToolExposureDeniedResult(
@@ -415,11 +422,13 @@ object ToolExecutionManager {
     /**
      * Check if a tool requires permission and verify if it has permission
      *
+     * @param androidContext Android context used to resolve permission error messages
      * @param toolHandler The AIToolHandler instance to use for permission checks
      * @param invocation The tool invocation to check permissions for
      * @return A pair containing (has permission, error result if no permission)
      */
     suspend fun checkToolPermission(
+        androidContext: Context,
         toolHandler: AIToolHandler,
         invocation: ToolInvocation,
         toolExposureMode: ToolExposureMode = ToolExposureMode.FULL
@@ -452,21 +461,22 @@ object ToolExecutionManager {
         if (hasPromptForPermission) {
             // 检查权限，如果需要则弹出权限请求界面
             val toolPermissionSystem = toolHandler.getToolPermissionSystem()
-            val hasPermission = toolPermissionSystem.checkToolPermission(permissionTool)
+            val permissionResult = toolPermissionSystem.checkToolPermission(permissionTool)
 
-            // 如果权限被拒绝，创建错误结果
-            if (!hasPermission) {
+            if (!permissionResult.isGranted) {
+                val errorMessage =
+                    androidContext.getString(requireNotNull(permissionResult.errorMessageResId))
                 val errorResult =
                     ToolResult(
                         toolName = resolvedTarget.displayName,
                         success = false,
                         result = StringResultData(""),
-                        error = "User cancelled the tool execution."
+                        error = errorMessage
                     )
                 toolHandler.notifyToolPermissionChecked(
                     permissionTool,
                     granted = false,
-                    reason = errorResult.error
+                    reason = errorMessage
                 )
                 return Pair(false, errorResult)
             }
@@ -538,7 +548,7 @@ object ToolExecutionManager {
                 toolHandler.notifyToolExecutionResult(invocation.tool, deniedResult)
                 val toolResultStatusContent =
                     ConversationMarkupManager.formatToolResultForMessage(deniedResult)
-                collector.emit(ensureEndsWithNewline(toolResultStatusContent))
+                collector.emit(ensureOwnLine(toolResultStatusContent))
             }
         }
 
@@ -561,7 +571,7 @@ object ToolExecutionManager {
                 toolHandler.notifyToolExecutionResult(invocation.tool, deniedResult)
                 val toolResultStatusContent =
                     ConversationMarkupManager.formatToolResultForMessage(deniedResult)
-                collector.emit(ensureEndsWithNewline(toolResultStatusContent))
+                collector.emit(ensureOwnLine(toolResultStatusContent))
             }
         }
 
@@ -575,7 +585,7 @@ object ToolExecutionManager {
             when (val interception = toolHandler.checkToolInterception(interceptionTool)) {
                 AIToolHookDecision.Allow -> {
                     val (hasPermission, errorResult) =
-                        checkToolPermission(toolHandler, invocation, toolExposureMode)
+                        checkToolPermission(context, toolHandler, invocation, toolExposureMode)
                     if (hasPermission) {
                         permittedInvocations.add(invocation)
                     } else {
@@ -583,7 +593,7 @@ object ToolExecutionManager {
                             permissionDeniedResults.add(it)
                             val toolResultStatusContent =
                                 ConversationMarkupManager.formatToolResultForMessage(it)
-                            collector.emit(ensureEndsWithNewline(toolResultStatusContent))
+                            collector.emit(ensureOwnLine(toolResultStatusContent))
                         }
                     }
                 }
@@ -599,7 +609,7 @@ object ToolExecutionManager {
                     toolHandler.notifyToolExecutionFinished(invocation.tool)
                     val toolResultStatusContent =
                         ConversationMarkupManager.formatToolResultForMessage(interceptedResult)
-                    collector.emit(ensureEndsWithNewline(toolResultStatusContent))
+                    collector.emit(ensureOwnLine(toolResultStatusContent))
                 }
             }
         }
@@ -699,7 +709,7 @@ object ToolExecutionManager {
                         buildToolNotAvailableErrorMessage(toolName, packageManager, toolHandler)
                     val notAvailableContent =
                         ConversationMarkupManager.createToolNotAvailableError(toolName, errorMessage)
-                    collector.emit(ensureEndsWithNewline(notAvailableContent))
+                    collector.emit(ensureOwnLine(notAvailableContent))
                     val notAvailableResult =
                         ToolResult(
                             toolName = displayToolName,
@@ -719,7 +729,7 @@ object ToolExecutionManager {
                     // 实时输出每个结果
                     val toolResultStatusContent =
                         ConversationMarkupManager.formatToolResultForMessage(result)
-                    collector.emit(ensureEndsWithNewline(toolResultStatusContent))
+                    collector.emit(ensureOwnLine(toolResultStatusContent))
                 }
 
                 // 为此调用聚合最终结果

@@ -2,6 +2,8 @@
   "schema_version": 1,
   "toolpkg_id": "com.operit.template_try_bundle",
   "version": "0.1.0",
+  "api_version": "1.0.0",
+  "requires": [],
   "main": "dist/main.js",
   "display_name": {
     "zh": "模板接入演示",

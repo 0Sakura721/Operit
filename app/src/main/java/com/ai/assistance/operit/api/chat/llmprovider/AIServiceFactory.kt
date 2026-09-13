@@ -394,6 +394,7 @@ object AIServiceFactory {
                     supportsVideo = false,
                     supportsFiles = supportsVision,
                     enableToolCall = enableToolCall,
+                    enableWebSearch = config.enableCodexWebSearch,
                     thinkingConfigurations = config.thinkingConfigurations,
                     thinkingOptionId = config.thinkingOptionId,
                 )
@@ -563,19 +564,15 @@ object AIServiceFactory {
                     thinkingOptionId = config.thinkingOptionId,
                 )
             ApiProviderType.DEEPSEEK ->
-                DeepseekProvider(
-                    apiEndpoint = config.apiEndpoint,
-                    apiKeyProvider = apiKeyProvider,
-                    modelName = config.modelName,
+                DeepseekProvider.create(
+                    config = config,
                     client = httpClient,
                     customHeaders = customHeaders,
-                    providerType = providerType,
+                    apiKeyProvider = apiKeyProvider,
                     supportsVision = supportsVision,
                     supportsAudio = supportsAudio,
                     supportsVideo = supportsVideo,
-                    enableToolCall = enableToolCall,
-                    thinkingConfigurations = config.thinkingConfigurations,
-                    thinkingOptionId = config.thinkingOptionId,
+                    enableToolCall = enableToolCall
                 )
             ApiProviderType.MISTRAL ->
                 MistralProvider(

@@ -33,6 +33,7 @@ class CodexProvider(
     supportsVideo: Boolean = false,
     supportsFiles: Boolean = false,
     enableToolCall: Boolean = false,
+    private val enableWebSearch: Boolean = false,
     thinkingConfigurations: String = "",
     thinkingOptionId: String = "",
 ) : OpenAIResponsesProvider(
@@ -69,6 +70,9 @@ class CodexProvider(
         toolsJson: String?,
     ) {
         super.customizeFinalRequestObject(requestObject, messagesArray, toolsJson)
+        if (enableWebSearch) {
+            appendWebSearchTool(requestObject)
+        }
         CodexModelVariant.applyRequestParameters(requestObject, modelName)
         requestObject.put("store", false)
         requestObject.put("parallel_tool_calls", false)
@@ -78,10 +82,58 @@ class CodexProvider(
         if (!containsString(include, "reasoning.encrypted_content")) {
             include.put("reasoning.encrypted_content")
         }
+        if (enableWebSearch && !containsString(include, "web_search_call.action.sources")) {
+            include.put("web_search_call.action.sources")
+        }
+    }
+
+    override fun formatResponsesWebSearchDisplayXml(
+        context: Context,
+        item: JSONObject,
+        response: JSONObject?
+    ): String? {
+        if (item.optString("type", "") != "web_search_call") {
+            return null
+        }
+
+        val action = item.optJSONObject("action")
+        val actionType = action?.optString("type", "")?.trim().orEmpty()
+        val queries = collectResponsesWebSearchQueries(action, actionType)
+        val status = item.optString("status", "").trim()
+        val sources = mergeResponsesWebSearchSources(
+            primary = collectResponsesWebSearchActionSources(action, actionType) +
+                collectResponsesWebSearchSourceArray(action?.optJSONArray("sources")),
+            additional = collectResponsesWebSearchSources(response)
+        )
+        if (queries.isEmpty() && sources.isEmpty()) {
+            return null
+        }
+
+        return buildCodexSearchXml(
+            actionType = actionType,
+            queries = queries,
+            status = status,
+            sources = sources,
+        )
     }
 
     override suspend fun getModelsList(_context: Context): Result<List<ModelOption>> {
         return CodexModelListFetcher.getModelsList(httpClient)
+    }
+
+    private fun appendWebSearchTool(requestObject: JSONObject) {
+        val tools = requestObject.optJSONArray("tools") ?: JSONArray().also {
+            requestObject.put("tools", it)
+        }
+        for (index in 0 until tools.length()) {
+            val tool = tools.optJSONObject(index) ?: continue
+            if (tool.optString("type") == "web_search") {
+                requestObject.put("tool_choice", "auto")
+                return
+            }
+        }
+        tools.put(JSONObject().put("type", "web_search"))
+        requestObject.put("tool_choice", "auto")
     }
 
     private fun containsString(array: JSONArray, value: String): Boolean {
@@ -90,6 +142,60 @@ class CodexProvider(
         }
         return false
     }
+
+    private fun buildCodexSearchXml(
+        actionType: String,
+        queries: List<String>,
+        status: String,
+        sources: List<ResponsesWebSearchSource>
+    ): String {
+        return buildString {
+            append("<search")
+            appendXmlAttribute("provider", "codex")
+            appendXmlAttribute("action", actionType)
+            appendXmlAttribute("status", status)
+            append(">")
+            queries.forEach { query ->
+                append("\n  <query>")
+                append(escapeXmlText(query))
+                append("</query>")
+            }
+            sources.forEach { source ->
+                append("\n  <source")
+                appendResponsesWebSearchSourceAttributes(this, source)
+                append(" />")
+            }
+            append("\n</search>")
+        }
+    }
+
+    private fun StringBuilder.appendXmlAttribute(name: String, value: String) {
+        if (value.isEmpty()) {
+            return
+        }
+        append(" ")
+        append(name)
+        append("=\"")
+        append(escapeXmlAttribute(value))
+        append("\"")
+    }
+
+    private fun escapeXmlAttribute(text: String): String {
+        return text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;")
+    }
+
+    private fun escapeXmlText(text: String): String {
+        return text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    }
+
 }
 
 object CodexModelPolicy {

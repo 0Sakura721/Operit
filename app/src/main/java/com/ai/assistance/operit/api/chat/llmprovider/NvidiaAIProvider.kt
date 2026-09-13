@@ -44,6 +44,7 @@ class NvidiaAIProvider(
     thinkingConfigurations = thinkingConfigurations,
         thinkingOptionId = thinkingOptionId
 ) {
+    private val configuredApiEndpoint = apiEndpoint
 
     override fun createRequestBody(
         context: Context,
@@ -69,7 +70,7 @@ class NvidiaAIProvider(
             requestJson = jsonObject,
             providerTypeId = ApiProviderType.NVIDIA.name,
             modelName = modelName,
-            apiEndpoint = "",
+            apiEndpoint = configuredApiEndpoint,
             thinkingConfigurations = thinkingConfigurations,
             enableThinking = enableThinking,
             optionId = thinkingOptionId,

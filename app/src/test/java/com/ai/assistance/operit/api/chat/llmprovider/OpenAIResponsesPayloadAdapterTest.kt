@@ -1,8 +1,10 @@
 package com.ai.assistance.operit.api.chat.llmprovider
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -61,5 +63,95 @@ class OpenAIResponsesPayloadAdapterTest {
                 JSONObject("""{"other": "x"}""")
             )
         )
+    }
+
+    @Test
+    fun `non streaming response records web search call output item metadata`() {
+        val response =
+            JSONObject(
+                """
+                {
+                  "status": "incomplete",
+                  "output": [
+                    {
+                      "type": "web_search_call",
+                      "id": "call_00_web",
+                      "status": "completed",
+                      "action": {
+                        "type": "search",
+                        "queries": ["deepseek responses web search"]
+                      }
+                    },
+                    {
+                      "type": "message",
+                      "content": [
+                        {
+                          "type": "output_text",
+                          "text": "answer",
+                          "annotations": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.trimIndent()
+            )
+
+        val parsed = OpenAIResponsesPayloadAdapter.parseNonStreamingResponse(response)
+
+        assertEquals(1, parsed.outputItemMetadataTags.size)
+        assertTrue(
+            parsed.outputItemMetadataTags.single()
+                .contains("provider=\"openai:responses_output_item\"")
+        )
+    }
+
+    @Test
+    fun `responses request replays web search output item and removes display search markup`() {
+        val webSearchItem =
+            JSONObject()
+                .put("type", "web_search_call")
+                .put("id", "call_00_web")
+                .put("status", "completed")
+                .put(
+                    "action",
+                    JSONObject()
+                        .put("type", "search")
+                        .put("queries", JSONArray().put("deepseek responses web search"))
+                )
+        val outputItemMeta = OpenAIResponsesPayloadAdapter.createOutputItemMetadataTag(webSearchItem)!!
+        val chatStyleRequest =
+            JSONObject()
+                .put("model", "deepseek-reasoner")
+                .put(
+                    "messages",
+                    JSONArray()
+                        .put(
+                            JSONObject()
+                                .put("role", "assistant")
+                                .put(
+                                    "content",
+                                    outputItemMeta +
+                                        "\n<search provider=\"deepseek\"><query>deepseek responses web search</query></search>" +
+                                        "\nanswer"
+                                )
+                        )
+                )
+
+        val responsesRequest = OpenAIResponsesPayloadAdapter.toResponsesRequest(chatStyleRequest)
+        val input = responsesRequest.getJSONArray("input")
+        val replayedItem = input.getJSONObject(0)
+        val visibleMessage = input.getJSONObject(1)
+
+        assertEquals("web_search_call", replayedItem.getString("type"))
+        assertEquals("call_00_web", replayedItem.getString("id"))
+        assertEquals("search", replayedItem.getJSONObject("action").getString("type"))
+        assertEquals(
+            "deepseek responses web search",
+            replayedItem.getJSONObject("action").getJSONArray("queries").getString(0)
+        )
+        assertEquals("message", visibleMessage.getString("type"))
+        assertEquals("assistant", visibleMessage.getString("role"))
+        assertEquals("answer", visibleMessage.getString("content"))
     }
 }

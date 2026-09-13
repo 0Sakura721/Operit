@@ -86,6 +86,50 @@ internal data class GeminiThinkingConfig(
     }
 }
 
+/**
+ * Applies the Gemini thinking contract after the shared model mapping. A reasoning-required model
+ * still receives its selected level when a functional caller disables thinking, but that caller
+ * must not receive or persist the model's thought text.
+ */
+internal fun applyGeminiThinkingConfiguration(
+    requestJson: JSONObject,
+    providerTypeId: String,
+    modelName: String,
+    apiEndpoint: String,
+    thinkingConfigurations: String,
+    enableThinking: Boolean,
+    optionId: String,
+): ThinkingQualityMapping {
+    val mapping =
+        ThinkingConfigurationApplier.apply(
+            requestJson = requestJson,
+            providerTypeId = providerTypeId,
+            modelName = modelName,
+            apiEndpoint = apiEndpoint,
+            thinkingConfigurations = thinkingConfigurations,
+            enableThinking = enableThinking,
+            optionId = optionId,
+        )
+
+    if (!enableThinking) {
+        requestJson
+            .optJSONObject("generationConfig")
+            ?.optJSONObject("thinkingConfig")
+            ?.put("includeThoughts", false)
+    }
+    return mapping
+}
+
+/** Builds one Gemini Part, using the wire field name required by the Gemini REST API. */
+internal fun buildGeminiFunctionCallPart(
+    functionCall: JSONObject,
+    thoughtSignature: String?,
+): JSONObject =
+    JSONObject().apply {
+        put("functionCall", functionCall)
+        thoughtSignature?.let { put("thoughtSignature", it) }
+    }
+
 /** Google Gemini API的实现 支持标准Gemini接口流式传输 */
 open class GeminiProvider(
     private val apiEndpoint: String,
@@ -138,9 +182,9 @@ open class GeminiProvider(
     @Volatile private var isManuallyCancelled = false
 
     /**
-     * 由客户端错误（如4xx状态码）触发的API异常，是否重试由统一策略决定
+     * 带 HTTP 状态码的 API 异常，供统一重试日志和最终错误展示使用。
      */
-    class NonRetriableException(
+    class HttpStatusException(
         message: String,
         override val statusCode: Int,
         cause: Throwable? = null
@@ -151,9 +195,6 @@ open class GeminiProvider(
     // Token计数
     private val tokenCacheManager = TokenCacheManager()
     
-    // 思考状态跟踪
-    private var isInThinkingMode = false
-
     override val inputTokenCount: Long
         get() = tokenCacheManager.totalInputTokenCount
     override val cachedInputTokenCount: Long
@@ -195,7 +236,6 @@ open class GeminiProvider(
     // 重置Token计数
     override fun resetTokenCounts() {
         tokenCacheManager.resetTokenCounts()
-        isInThinkingMode = false
     }
 
     override suspend fun calculateInputTokens(
@@ -216,12 +256,14 @@ open class GeminiProvider(
                             PromptTurnKind.TOOL_RESULT -> "tool_result"
                             PromptTurnKind.SUMMARY -> "summary"
                         }
-                    val comparableContent =
+                    val rawComparableContent =
                         if (turn.kind == PromptTurnKind.ASSISTANT) {
                             ChatUtils.removeThinkingContent(turn.content)
                         } else {
                             turn.content
                         }
+                    val comparableContent =
+                        ChatUtils.stripOpenAiResponsesProtocolMarkup(rawComparableContent)
                     comparableRole to comparableContent
                 }
             )
@@ -309,6 +351,11 @@ open class GeminiProvider(
         val completionConfirmed: Boolean = false,
     )
 
+    /** Response parsing state must belong to one request, never to the shared provider instance. */
+    private data class GeminiResponseState(
+        var isInThinkingMode: Boolean = false,
+    )
+
     private fun encodeGeminiThoughtSignature(signature: String): String {
         return Base64.encodeToString(signature.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
     }
@@ -349,14 +396,7 @@ open class GeminiProvider(
 
     private fun JSONObject.optGeminiThoughtSignature(): String? {
         val camelCase = optString("thoughtSignature", "").trim()
-        if (camelCase.isNotEmpty()) {
-            return camelCase
-        }
-        val snakeCase = optString("thought_signature", "").trim()
-        if (snakeCase.isNotEmpty()) {
-            return snakeCase
-        }
-        return null
+        return camelCase.takeIf { it.isNotEmpty() }
     }
     
     /**
@@ -602,12 +642,14 @@ open class GeminiProvider(
                             PromptTurnKind.TOOL_RESULT -> "tool_result"
                             PromptTurnKind.SUMMARY -> "summary"
                         }
-                    val comparableContent =
+                    val rawComparableContent =
                         if (!preserveThinkInHistory && turn.kind == PromptTurnKind.ASSISTANT) {
                             ChatUtils.removeThinkingContent(turn.content)
                         } else {
                             turn.content
                         }
+                    val comparableContent =
+                        ChatUtils.stripOpenAiResponsesProtocolMarkup(rawComparableContent)
                     comparableRole to comparableContent
                 }
             )
@@ -621,7 +663,10 @@ open class GeminiProvider(
         // Find and process system message first
         val systemMessages = effectiveHistory.filter { it.kind == PromptTurnKind.SYSTEM }
         if (systemMessages.isNotEmpty()) {
-            val systemContent = systemMessages.joinToString("\n\n") { it.content }
+            val systemContent =
+                systemMessages.joinToString("\n\n") { turn ->
+                    ChatUtils.stripOpenAiResponsesProtocolMarkup(turn.content)
+                }
             logDebug("发现系统消息: ${systemContent.take(50)}...")
 
             systemInstruction = JSONObject().apply {
@@ -636,7 +681,7 @@ open class GeminiProvider(
         var queuedAssistantToolText: String? = null
         var queuedAssistantThoughtSignature: String? = null
         val queuedFunctionCalls = mutableListOf<JSONObject>()
-        val openFunctionCallNames = mutableListOf<String>()
+        val openFunctionCalls = mutableListOf<StructuredToolCallBridge.OpenToolCall>()
 
         fun appendParts(target: JSONArray, parts: JSONArray) {
             for (index in 0 until parts.length()) {
@@ -675,14 +720,11 @@ open class GeminiProvider(
             }
             queuedFunctionCalls.forEachIndexed { index, functionCall ->
                 partsArray.put(
-                    JSONObject().apply {
-                        put("functionCall", functionCall)
-                        if (index == 0) {
-                            queuedAssistantThoughtSignature?.let { signature ->
-                                put("thought_signature", signature)
-                            }
-                        }
-                    }
+                    buildGeminiFunctionCallPart(
+                        functionCall = functionCall,
+                        thoughtSignature =
+                            if (index == 0) queuedAssistantThoughtSignature else null,
+                    )
                 )
             }
 
@@ -694,29 +736,41 @@ open class GeminiProvider(
             )
 
             queuedFunctionCalls.forEach { functionCall ->
-                openFunctionCallNames.add(functionCall.optString("name", "").trim())
+                val functionName = functionCall.optString("name", "").trim()
+                openFunctionCalls.add(
+                    StructuredToolCallBridge.OpenToolCall(
+                        id = functionName,
+                        matchingName = StructuredToolCallBridge.toolCallName(functionCall),
+                    )
+                )
             }
             queuedAssistantToolText = null
             queuedAssistantThoughtSignature = null
             queuedFunctionCalls.clear()
         }
 
-        fun appendCancelledOpenFunctionResponses(target: JSONArray, reason: String): Boolean {
+        fun appendUnmatchedOpenFunctionResponses(target: JSONArray, reason: String): Boolean {
             emitQueuedFunctionCallsIfNeeded()
-            if (openFunctionCallNames.isEmpty()) return false
+            if (openFunctionCalls.isEmpty()) return false
 
-            logDebug("发现未完成的Gemini functionCall，按取消处理: count=${openFunctionCallNames.size}, reason=$reason")
-            openFunctionCallNames.forEach { functionName ->
+            logDebug("发现未匹配的Gemini functionCall，按工具结果未匹配处理: count=${openFunctionCalls.size}, reason=$reason")
+            openFunctionCalls.forEach { openFunctionCall ->
                 target.put(
                     JSONObject().apply {
                         put(
                             "functionResponse",
                             JSONObject().apply {
-                                put("name", functionName.ifBlank { "cancelled_function" })
+                                put("name", openFunctionCall.id.ifBlank { "unmatched_function" })
                                 put(
                                     "response",
                                     JSONObject().apply {
-                                        put("result", "User cancelled")
+                                        put(
+                                            "result",
+                                            StructuredToolCallBridge.unmatchedToolResultContent(
+                                                reason,
+                                                openFunctionCall.matchingName
+                                            )
+                                        )
                                     }
                                 )
                             }
@@ -724,13 +778,13 @@ open class GeminiProvider(
                     }
                 )
             }
-            openFunctionCallNames.clear()
+            openFunctionCalls.clear()
             return true
         }
 
-        fun flushOpenFunctionCallsAsCancelled(reason: String) {
+        fun flushOpenFunctionCallsAsUnmatched(reason: String) {
             val partsArray = JSONArray()
-            if (!appendCancelledOpenFunctionResponses(partsArray, reason)) return
+            if (!appendUnmatchedOpenFunctionResponses(partsArray, reason)) return
             contentsArray.put(
                 JSONObject().apply {
                     put("role", "user")
@@ -740,12 +794,13 @@ open class GeminiProvider(
         }
 
         for (turn in historyWithoutSystem) {
-            val content =
+            val rawContent =
                 if (!preserveThinkInHistory && turn.kind == PromptTurnKind.ASSISTANT) {
                     ChatUtils.removeThinkingContent(turn.content)
                 } else {
                     turn.content
                 }
+            val content = ChatUtils.stripOpenAiResponsesProtocolMarkup(rawContent)
             val contentWithoutGeminiMeta = ChatMarkupRegex.removeGeminiThoughtSignatureMeta(content)
 
             if (enableToolCall) {
@@ -753,8 +808,8 @@ open class GeminiProvider(
                     PromptTurnKind.ASSISTANT -> {
                         val functionCallPayload = parseXmlToolCalls(content)
                         if (functionCallPayload.functionCalls.isNotEmpty()) {
-                            if (openFunctionCallNames.isNotEmpty()) {
-                                flushOpenFunctionCallsAsCancelled("assistant_function_call_before_result")
+                            if (openFunctionCalls.isNotEmpty()) {
+                                flushOpenFunctionCallsAsUnmatched("assistant_function_call_before_result")
                             }
                             queueFunctionCalls(
                                 functionCallPayload.textContent,
@@ -762,7 +817,7 @@ open class GeminiProvider(
                                 functionCallPayload.thoughtSignature
                             )
                         } else {
-                            flushOpenFunctionCallsAsCancelled("assistant_boundary")
+                            flushOpenFunctionCallsAsUnmatched("assistant_boundary")
                             contentsArray.put(
                                 JSONObject().apply {
                                     put("role", "model")
@@ -775,8 +830,8 @@ open class GeminiProvider(
                     PromptTurnKind.TOOL_CALL -> {
                         val functionCallPayload = parseXmlToolCalls(content)
                         if (functionCallPayload.functionCalls.isNotEmpty()) {
-                            if (openFunctionCallNames.isNotEmpty()) {
-                                flushOpenFunctionCallsAsCancelled("typed_function_call_before_result")
+                            if (openFunctionCalls.isNotEmpty()) {
+                                flushOpenFunctionCallsAsUnmatched("typed_function_call_before_result")
                             }
                             queueFunctionCalls(
                                 functionCallPayload.textContent,
@@ -784,7 +839,7 @@ open class GeminiProvider(
                                 functionCallPayload.thoughtSignature
                             )
                         } else {
-                            flushOpenFunctionCallsAsCancelled("typed_tool_call_without_payload")
+                            flushOpenFunctionCallsAsUnmatched("typed_tool_call_without_payload")
                             contentsArray.put(
                                 JSONObject().apply {
                                     put("role", "model")
@@ -797,7 +852,7 @@ open class GeminiProvider(
                     PromptTurnKind.USER,
                     PromptTurnKind.SUMMARY -> {
                         val partsArray = JSONArray()
-                        appendCancelledOpenFunctionResponses(partsArray, "user_boundary")
+                        appendUnmatchedOpenFunctionResponses(partsArray, "user_boundary")
                         appendParts(partsArray, buildPartsArray(contentWithoutGeminiMeta))
                         contentsArray.put(
                             JSONObject().apply {
@@ -812,13 +867,17 @@ open class GeminiProvider(
                         val (textContent, functionResponses) = parseXmlToolResults(contentWithoutGeminiMeta)
                         val responsesList = functionResponses ?: emptyList()
 
-                        if (responsesList.isNotEmpty() && openFunctionCallNames.isNotEmpty()) {
+                        if (responsesList.isNotEmpty() && openFunctionCalls.isNotEmpty()) {
                             val partsArray = JSONArray()
-                            val validCount = minOf(responsesList.size, openFunctionCallNames.size)
-
-                            repeat(validCount) { index ->
-                                val response = JSONObject(responsesList[index].toString())
-                                val pendingName = openFunctionCallNames[index]
+                            val resultNames = responsesList.map { it.optString("name", "") }
+                            val matchedCalls =
+                                StructuredToolCallBridge.consumeMatchingToolCalls(
+                                    openFunctionCalls,
+                                    resultNames
+                                )
+                            matchedCalls.forEach { matchedCall ->
+                                val response = JSONObject(responsesList[matchedCall.resultIndex].toString())
+                                val pendingName = matchedCall.call.id
                                 if (pendingName.isNotBlank()) {
                                     response.put("name", pendingName)
                                 }
@@ -830,13 +889,11 @@ open class GeminiProvider(
                                 logDebug("历史XML→GeminiFunctionResponse: ${response.optString("name")}")
                             }
 
-                            repeat(validCount) {
-                                openFunctionCallNames.removeAt(0)
+                            if (matchedCalls.size < responsesList.size) {
+                                logDebug("发现未匹配的Gemini functionResponse: ${responsesList.size - matchedCalls.size}")
                             }
 
-                            if (responsesList.size > validCount) {
-                                logDebug("发现多余的Gemini functionResponse: ${responsesList.size} results vs ${validCount} pending functionCalls")
-                            }
+                            appendUnmatchedOpenFunctionResponses(partsArray, "tool_result_partial_batch")
 
                             if (textContent.isNotEmpty()) {
                                 appendParts(partsArray, buildPartsArray(textContent))
@@ -850,20 +907,18 @@ open class GeminiProvider(
                             )
                         } else {
                             val partsArray = JSONArray()
-                            appendCancelledOpenFunctionResponses(partsArray, "tool_result_without_structured_match")
-                            val fallbackContent =
-                                when {
-                                    textContent.isNotEmpty() -> textContent
-                                    contentWithoutGeminiMeta.isNotBlank() -> contentWithoutGeminiMeta
-                                    else -> "[Empty]"
-                                }
-                            appendParts(partsArray, buildPartsArray(fallbackContent))
-                            contentsArray.put(
-                                JSONObject().apply {
-                                    put("role", "user")
-                                    put("parts", partsArray)
-                                }
-                            )
+                            appendUnmatchedOpenFunctionResponses(partsArray, "tool_result_without_structured_match")
+                            if (textContent.isNotEmpty()) {
+                                appendParts(partsArray, buildPartsArray(textContent))
+                            }
+                            if (partsArray.length() > 0) {
+                                contentsArray.put(
+                                    JSONObject().apply {
+                                        put("role", "user")
+                                        put("parts", partsArray)
+                                    }
+                                )
+                            }
                         }
                     }
 
@@ -885,7 +940,7 @@ open class GeminiProvider(
             }
         }
 
-        flushOpenFunctionCallsAsCancelled("history_end")
+        flushOpenFunctionCallsAsUnmatched("history_end")
 
         return Pair(Pair(contentsArray, systemInstruction), tokenCount)
     }
@@ -1127,8 +1182,6 @@ open class GeminiProvider(
         val requestId = System.currentTimeMillis().toString()
         // 重置输出token计数（保留输入历史缓存）
         tokenCacheManager.addOutputTokens(-tokenCacheManager.outputTokenCount)
-        isInThinkingMode = false
-        
         onTokensUpdated(
                 tokenCacheManager.totalInputTokenCount,
                 tokenCacheManager.cachedInputTokenCount,
@@ -1209,24 +1262,43 @@ open class GeminiProvider(
                         if (!response.isSuccessful) {
                             val errorBody = response.body?.string() ?: context.getString(R.string.gemini_error_no_error_details)
                             logError("API请求失败: ${response.code}, $errorBody")
-                            // 4xx错误仍保留单独的异常类型，具体是否重试由统一策略决定
+                            // 状态码错误保留状态码信息，随后进入统一重试循环。
                             if (response.code in 400..499) {
-                                throw NonRetriableException(
+                                throw HttpStatusException(
                                     context.getString(R.string.gemini_error_api_request_failed, response.code, errorBody),
                                     statusCode = response.code
                                 )
                             }
-                            // 对于5xx等服务端错误，允许重试
                             throw IOException(context.getString(R.string.gemini_error_api_request_failed, response.code, errorBody))
                         }
 
                         // 根据stream参数处理响应
                         if (stream) {
                             // 处理流式响应
-                            processStreamingResponse(context, response, streamCollector, requestId, onTokensUpdated, receivedContent, onUsageReported, retryCount + 1)
+                            processStreamingResponse(
+                                context,
+                                response,
+                                streamCollector,
+                                requestId,
+                                onTokensUpdated,
+                                receivedContent,
+                                enableThinking,
+                                onUsageReported,
+                                retryCount + 1,
+                            )
                         } else {
                             // 处理非流式响应并转换为Stream
-                            processNonStreamingResponse(context, response, streamCollector, requestId, onTokensUpdated, receivedContent, onUsageReported, retryCount + 1)
+                            processNonStreamingResponse(
+                                context,
+                                response,
+                                streamCollector,
+                                requestId,
+                                onTokensUpdated,
+                                receivedContent,
+                                enableThinking,
+                                onUsageReported,
+                                retryCount + 1,
+                            )
                         }
                     } finally {
                         response.close()
@@ -1377,8 +1449,7 @@ open class GeminiProvider(
         }
 
         json.put("generationConfig", generationConfig)
-        ThinkingConfigurationApplier.apply(
-            context = context,
+        applyGeminiThinkingConfiguration(
             requestJson = json,
             providerTypeId = providerType.name,
             modelName = modelName,
@@ -1461,12 +1532,14 @@ open class GeminiProvider(
             requestId: String,
             onTokensUpdated: suspend (input: Long, cachedInput: Long, output: Long) -> Unit,
             receivedContent: StringBuilder,
+            includeThoughtsInOutput: Boolean,
             onUsageReported: (suspend (com.ai.assistance.operit.data.stats.ProviderUsageSnapshot, attempt: Int) -> Unit)? = null,
             attemptNumber: Int = 1
     ) {
         AppLogger.d(TAG, "开始处理响应流")
         val responseBody = response.body ?: throw IOException(context.getString(R.string.gemini_response_empty))
         val reader = responseBody.charStream().buffered()
+        val responseState = GeminiResponseState()
 
         // 注意：不再使用fullContent累积所有内容
         var lineCount = 0
@@ -1511,7 +1584,14 @@ open class GeminiProvider(
                             val json = JSONObject(data)
                             jsonCount++
 
-                            val extraction = extractContentFromJson(context, json, requestId, onTokensUpdated)
+                            val extraction = extractContentFromJson(
+                                context,
+                                json,
+                                requestId,
+                                onTokensUpdated,
+                                responseState,
+                                includeThoughtsInOutput,
+                            )
                             if (extraction.completionConfirmed) {
                                 streamCompletionConfirmed = true
                             }
@@ -1583,7 +1663,9 @@ open class GeminiProvider(
                                                                     context,
                                                                     jsonObject,
                                                                     requestId,
-                                                                    onTokensUpdated
+                                                                    onTokensUpdated,
+                                                                    responseState,
+                                                                    includeThoughtsInOutput,
                                                             )
                                                     if (extraction.completionConfirmed) {
                                                         streamCompletionConfirmed = true
@@ -1611,6 +1693,8 @@ open class GeminiProvider(
                                                     jsonContent,
                                                     requestId,
                                                     onTokensUpdated,
+                                                    responseState,
+                                                    includeThoughtsInOutput,
                                                 )
                                             if (extraction.completionConfirmed) {
                                                 streamCompletionConfirmed = true
@@ -1670,7 +1754,14 @@ open class GeminiProvider(
                             for (i in 0 until jsonContent.length()) {
                                 val jsonObject = jsonContent.optJSONObject(i) ?: continue
                                 jsonCount++
-                                val extraction = extractContentFromJson(context, jsonObject, requestId, onTokensUpdated)
+                                val extraction = extractContentFromJson(
+                                    context,
+                                    jsonObject,
+                                    requestId,
+                                    onTokensUpdated,
+                                    responseState,
+                                    includeThoughtsInOutput,
+                                )
                                 if (extraction.completionConfirmed) {
                                     streamCompletionConfirmed = true
                                 }
@@ -1686,7 +1777,14 @@ open class GeminiProvider(
                         }
                         is JSONObject -> {
                             jsonCount++
-                            val extraction = extractContentFromJson(context, jsonContent, requestId, onTokensUpdated)
+                            val extraction = extractContentFromJson(
+                                context,
+                                jsonContent,
+                                requestId,
+                                onTokensUpdated,
+                                responseState,
+                                includeThoughtsInOutput,
+                            )
                             if (extraction.completionConfirmed) {
                                 streamCompletionConfirmed = true
                             }
@@ -1714,10 +1812,10 @@ open class GeminiProvider(
             }
 
             // 确保思考模式正确结束
-            if (isInThinkingMode) {
+            if (responseState.isInThinkingMode) {
                 logDebug("流结束时仍在思考模式，添加结束标签")
                 streamCollector.emit("</think>")
-                isInThinkingMode = false
+                responseState.isInThinkingMode = false
             }
             
             // 确保至少发送一次内容
@@ -1743,11 +1841,13 @@ open class GeminiProvider(
             requestId: String,
             onTokensUpdated: suspend (input: Long, cachedInput: Long, output: Long) -> Unit,
             receivedContent: StringBuilder,
+            includeThoughtsInOutput: Boolean,
             onUsageReported: (suspend (com.ai.assistance.operit.data.stats.ProviderUsageSnapshot, attempt: Int) -> Unit)? = null,
             attemptNumber: Int = 1
     ) {
         AppLogger.d(TAG, "开始处理非流式响应")
         val responseBody = response.body ?: throw IOException(context.getString(R.string.gemini_response_empty))
+        val responseState = GeminiResponseState()
 
         suspend fun reportUsage(usage: com.ai.assistance.operit.data.stats.ProviderUsageSnapshot?) {
             usage?.let { onUsageReported?.invoke(it, attemptNumber) }
@@ -1761,7 +1861,14 @@ open class GeminiProvider(
             val json = JSONObject(responseText)
             
             // 提取内容
-            val extraction = extractContentFromJson(context, json, requestId, onTokensUpdated)
+            val extraction = extractContentFromJson(
+                context,
+                json,
+                requestId,
+                onTokensUpdated,
+                responseState,
+                includeThoughtsInOutput,
+            )
             val content = extraction.content
             
             if (content.isNotEmpty()) {
@@ -1778,10 +1885,10 @@ open class GeminiProvider(
             reportUsage(extraction.usage)
             
             // 确保思考模式正确结束
-            if (isInThinkingMode) {
+            if (responseState.isInThinkingMode) {
                 logDebug("非流式响应结束时仍在思考模式，添加结束标签")
                 streamCollector.emit("</think>")
-                isInThinkingMode = false
+                responseState.isInThinkingMode = false
             }
         } catch (e: CancellationException) {
             throw e
@@ -1798,7 +1905,9 @@ open class GeminiProvider(
         context: Context,
         json: JSONObject,
         requestId: String,
-        onTokensUpdated: suspend (input: Long, cachedInput: Long, output: Long) -> Unit
+        onTokensUpdated: suspend (input: Long, cachedInput: Long, output: Long) -> Unit,
+        responseState: GeminiResponseState,
+        includeThoughtsInOutput: Boolean,
     ): GeminiContentExtractionResult {
         val contentBuilder = StringBuilder()
         val searchSourcesBuilder = StringBuilder()
@@ -1963,9 +2072,9 @@ open class GeminiProvider(
                      val mimeType = inlineData.optString("mime_type", inlineData.optString("mimeType", ""))
                      val b64 = inlineData.optString("data", "")
                      if (mimeType.startsWith("image/", ignoreCase = true) && b64.isNotEmpty()) {
-                         if (isInThinkingMode) {
+                         if (responseState.isInThinkingMode) {
                              contentBuilder.append("</think>")
-                             isInThinkingMode = false
+                             responseState.isInThinkingMode = false
                          }
                          val bytes = try {
                              Base64.decode(b64, Base64.DEFAULT)
@@ -1987,9 +2096,9 @@ open class GeminiProvider(
                     val toolName = functionCall.optString("name", "")
                     if (toolName.isNotEmpty()) {
                         // 工具调用必须在思考模式之外，如果当前在思考中，先关闭
-                        if (isInThinkingMode) {
+                        if (responseState.isInThinkingMode) {
                             contentBuilder.append("</think>")
-                            isInThinkingMode = false
+                            responseState.isInThinkingMode = false
                             logDebug("检测到工具调用，提前结束思考模式")
                         }
                         
@@ -2031,20 +2140,23 @@ open class GeminiProvider(
 
                 if (text.isNotEmpty()) {
                     // 处理思考模式状态切换
-                    if (isThought && !isInThinkingMode) {
+                    if (isThought && includeThoughtsInOutput && !responseState.isInThinkingMode) {
                         // 开始思考模式
                         contentBuilder.append("<think>")
-                        isInThinkingMode = true
+                        responseState.isInThinkingMode = true
                         logDebug("开始思考模式")
-                    } else if (!isThought && isInThinkingMode) {
+                    } else if (!isThought && responseState.isInThinkingMode) {
                         // 结束思考模式
                         contentBuilder.append("</think>")
-                        isInThinkingMode = false
+                        responseState.isInThinkingMode = false
                         logDebug("结束思考模式")
                     }
                     
-                    // 添加文本内容
-                    contentBuilder.append(text)
+                    // A disabled-thinking caller must not receive provider thought text, even if
+                    // an intermediary ignores includeThoughts=false and sends thought parts anyway.
+                    if (!isThought || includeThoughtsInOutput) {
+                        contentBuilder.append(text)
+                    }
                     
                     if (isThought) {
                         logDebug("提取思考内容，长度=${text.length}")

@@ -38,6 +38,7 @@ class DoubaoAIProvider(
         thinkingConfigurations = thinkingConfigurations,
         thinkingOptionId = thinkingOptionId
     ) {
+    private val configuredApiEndpoint = apiEndpoint
 
     /**
      * 重写创建请求体的方法，以支持豆包的`thinking`参数。
@@ -61,7 +62,7 @@ class DoubaoAIProvider(
             requestJson = jsonObject,
             providerTypeId = providerType.name,
             modelName = modelName,
-            apiEndpoint = "",
+            apiEndpoint = configuredApiEndpoint,
             thinkingConfigurations = thinkingConfigurations,
             enableThinking = enableThinking,
             optionId = thinkingOptionId,

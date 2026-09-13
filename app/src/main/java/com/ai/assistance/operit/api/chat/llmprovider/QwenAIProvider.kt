@@ -41,6 +41,7 @@ class QwenAIProvider(
         thinkingConfigurations = thinkingConfigurations,
         thinkingOptionId = thinkingOptionId
     ) {
+    private val configuredApiEndpoint = apiEndpoint
 
     override fun buildInputAudioPayload(link: MediaLink): JSONObject {
         val payload = super.buildInputAudioPayload(link)
@@ -67,7 +68,6 @@ class QwenAIProvider(
         val jsonObject = JSONObject(baseRequestBodyJson)
 
         applyQwenReasoningSettings(
-            context = context,
             requestJson = jsonObject,
             enableThinking = enableThinking
         )
@@ -90,19 +90,14 @@ class QwenAIProvider(
     }
 
     private fun applyQwenReasoningSettings(
-        context: Context,
         requestJson: JSONObject,
         enableThinking: Boolean
     ) {
-        if (qwenProviderType != ApiProviderType.SILICONFLOW) {
-            return
-        }
         ThinkingConfigurationApplier.apply(
-            context = context,
             requestJson = requestJson,
             providerTypeId = qwenProviderType.name,
             modelName = modelName,
-            apiEndpoint = "",
+            apiEndpoint = configuredApiEndpoint,
             thinkingConfigurations = thinkingConfigurations,
             enableThinking = enableThinking,
             optionId = thinkingOptionId,

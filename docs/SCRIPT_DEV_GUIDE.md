@@ -311,6 +311,7 @@ my-script-project/
 METADATA
 {
     "name": "Automatic_bilibili_assistant",
+    "version": "1.0.0",
     "display_name": {
         "zh": "B站智能助手",
         "en": "Bilibili Assistant"
@@ -340,6 +341,7 @@ METADATA
 ```
 
 -   `name`: 脚本的唯一标识符。
+-   `version`: （可选）脚本包自身的版本号，建议使用 `major.minor.patch` 格式；ToolPkg 的 `requires[].min_version` / `requires[].max_version` 会使用这个版本进行约束检查。
 -   `display_name`: （可选，推荐）用于界面显示的名称。不会影响脚本 ID；脚本 ID 仍由 `name` 决定。支持字符串或多语言对象（见 3.1.2）。
 -   `description`: 对脚本功能的详细描述。
 -   `author`: （可选）作者信息，支持单个字符串或字符串数组。

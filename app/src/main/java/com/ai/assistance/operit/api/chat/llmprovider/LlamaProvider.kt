@@ -374,12 +374,13 @@ class LlamaProvider(
                         PromptTurnKind.ASSISTANT,
                         PromptTurnKind.TOOL_CALL -> "assistant"
                     }
-                val content =
+                val rawContent =
                     if (!preserveThinkInHistory && turn.kind == PromptTurnKind.ASSISTANT) {
                         ChatUtils.removeThinkingContent(turn.content)
                     } else {
                         turn.content
                     }
+                val content = ChatUtils.stripOpenAiResponsesProtocolMarkup(rawContent)
                 role to content
             }
         val roles = ArrayList<String>(normalizedHistory.size)

@@ -16,6 +16,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ConversationSummaryConfig
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ToolParameter
@@ -114,19 +115,20 @@ class ConversationService(
             messages: List<PromptTurn>,
             previousSummary: String?,
             multiServiceManager: MultiServiceManager,
-            customRules: String? = null,
+            summaryConfig: ConversationSummaryConfig = ConversationSummaryConfig(),
             recordTokenUsage: Boolean = true,
     ): String {
         try {
-            val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+            val useEnglish = !LocaleUtils.usesChineseContent(context)
             val activePromptMetadata = buildActivePromptHookMetadata(context)
-            var systemPrompt = FunctionalPrompts.buildSummarySystemPrompt(previousSummary, useEnglish)
-            // 注入自定义总结规则
-            if (!customRules.isNullOrBlank()) {
-                systemPrompt += "\n\n${customRules.trim()}"
-            }
+            var systemPrompt =
+                FunctionalPrompts.buildSummarySystemPrompt(
+                    previousSummary = previousSummary,
+                    useEnglish = useEnglish,
+                    summaryConfig = summaryConfig
+                )
             val sanitizedMessages =
-                ChatUtils.stripOpenAiResponsesReasoningMetaTurns(
+                ChatUtils.stripOpenAiResponsesProtocolMarkupTurns(
                     ChatUtils.stripGeminiThoughtSignatureMetaTurns(messages)
                 )
 
@@ -341,7 +343,7 @@ class ConversationService(
         recordTokenUsage: Boolean = true,
     ): String {
         return try {
-            val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+            val useEnglish = !LocaleUtils.usesChineseContent(context)
             val systemPrompt = FunctionalPrompts.conversationTitleSystemPrompt(useEnglish)
             val userPrompt = FunctionalPrompts.conversationTitleUserPrompt(
                 userText = userText,
@@ -546,7 +548,7 @@ class ConversationService(
                     apiPreferences.safBookmarksFlow.first().map { it.name }
                 }.getOrElse { emptyList() }
 
-                val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+                val useEnglish = !LocaleUtils.usesChineseContent(context)
                 resolvedUseEnglish = useEnglish
                 val roleCardToolAccess = characterCardToolAccessResolver.resolve(
                     roleCardId = effectiveRoleCardId,
@@ -1086,6 +1088,7 @@ class ConversationService(
         val targetLanguage = when (currentLanguage) {
             LocaleUtils.LanguageCodes.CHINESE -> context.getString(R.string.conversation_language_chinese)
             LocaleUtils.LanguageCodes.ENGLISH -> "English"
+            LocaleUtils.LanguageCodes.JAPANESE -> "Japanese"
             LocaleUtils.LanguageCodes.KOREAN -> "Korean"
             LocaleUtils.LanguageCodes.SPANISH -> "Spanish"
             LocaleUtils.LanguageCodes.MALAY -> "Malay"
@@ -1150,7 +1153,7 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
         
         val toolList = toolDescriptions.joinToString("\n") { "- $it" }
 
-        val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        val useEnglish = !LocaleUtils.usesChineseContent(context)
         val descriptionPrompt =
             FunctionalPrompts.packageDescriptionUserPrompt(
                 pluginName = pluginName,

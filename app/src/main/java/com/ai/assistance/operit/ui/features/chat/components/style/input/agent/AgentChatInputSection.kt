@@ -360,7 +360,8 @@ fun AgentChatInputSection(
     val currentModelName by actualViewModel.modelName.collectAsState()
     val configMappingWithIndex by
         functionalConfigManager.functionConfigMappingWithIndexFlow.collectAsState(initial = emptyMap())
-    var configSummaries by remember { mutableStateOf<List<ModelConfigSummary>>(emptyList()) }
+    val configSummaries by
+            modelConfigManager.configSummariesFlow.collectAsState(initial = emptyList())
     val activeProfileId by userPreferencesManager.activeMemorySpaceIdFlow.collectAsState(initial = "default")
     var preferenceProfiles by remember { mutableStateOf<List<MemorySpace>>(emptyList()) }
     val currentConfigMapping =
@@ -385,16 +386,9 @@ fun AgentChatInputSection(
         }
 
     LaunchedEffect(Unit) {
-        configSummaries = modelConfigManager.getAllConfigSummaries()
         val profileIds = userPreferencesManager.memorySpaceListFlow.first()
         preferenceProfiles =
             profileIds.map { profileId -> userPreferencesManager.getMemorySpaceFlow(profileId).first() }
-    }
-
-    LaunchedEffect(showModelSelectorPopup.value) {
-        if (showModelSelectorPopup.value) {
-            configSummaries = modelConfigManager.getAllConfigSummaries()
-        }
     }
 
     val mappedModelName =

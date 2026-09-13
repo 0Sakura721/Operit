@@ -243,6 +243,7 @@ class GitHubForgePublishService(
                     downloadUrl = resolvedAsset.asset.browser_download_url,
                     sha256 = resolvedAsset.sha256,
                     version = descriptor.version,
+                    apiVersion = descriptor.apiVersion,
                     displayName = descriptor.displayName,
                     description = descriptor.description,
                     detail = descriptor.detail,
@@ -445,6 +446,7 @@ class GitHubForgePublishService(
                     formatVer = payload.type.marketFormatVersion(),
                     minAppVer = requireNotNull(payload.minSupportedAppVersion) { "Minimum supported app version is required" },
                     maxAppVer = payload.maxSupportedAppVersion ?: DEFAULT_MAX_SUPPORTED_APP_VERSION,
+                    apiVersion = payload.apiVersion,
                     projectId = payload.projectId,
                     runtimePackageId = payload.runtimePackageId
                 ),
@@ -479,6 +481,7 @@ class GitHubForgePublishService(
                     formatVer = payload.type.marketFormatVersion(),
                     minAppVer = requireNotNull(payload.minSupportedAppVersion) { "Minimum supported app version is required" },
                     maxAppVer = payload.maxSupportedAppVersion ?: DEFAULT_MAX_SUPPORTED_APP_VERSION,
+                    apiVersion = payload.apiVersion,
                     stateCode = "pending",
                     projectId = payload.projectId,
                     runtimePackageId = payload.runtimePackageId

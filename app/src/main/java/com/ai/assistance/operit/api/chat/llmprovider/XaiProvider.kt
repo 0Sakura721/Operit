@@ -37,6 +37,8 @@ class XaiProvider(
     thinkingConfigurations = thinkingConfigurations,
         thinkingOptionId = thinkingOptionId
 ) {
+    private val configuredApiEndpoint = apiEndpoint
+
     override fun createRequestBody(
         context: Context,
         chatHistory: List<PromptTurn>,
@@ -62,7 +64,7 @@ class XaiProvider(
             requestJson = requestJson,
             providerTypeId = ApiProviderType.XAI.name,
             modelName = modelName,
-            apiEndpoint = "",
+            apiEndpoint = configuredApiEndpoint,
             thinkingConfigurations = thinkingConfigurations,
             enableThinking = enableThinking,
             optionId = thinkingOptionId,

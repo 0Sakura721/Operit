@@ -511,12 +511,14 @@ class MNNProvider(
                     PromptTurnKind.ASSISTANT,
                     PromptTurnKind.TOOL_CALL -> "assistant"
                 }
-            val content =
+            val rawContent =
                 if (!preserveThinkInHistory && turn.kind == PromptTurnKind.ASSISTANT) {
                     com.ai.assistance.operit.util.ChatUtils.removeThinkingContent(turn.content)
                 } else {
                     turn.content
                 }
+            val content =
+                com.ai.assistance.operit.util.ChatUtils.stripOpenAiResponsesProtocolMarkup(rawContent)
             role to content
         }
     }

@@ -727,8 +727,10 @@
     <!-- Context Menu -->
     <string name="copy_message">Copy Message</string>
     <string name="markdown_source">Markdown source</string>
+    <string name="xml_source">XML source</string>
     <string name="copy_plain_text">Copy plain text</string>
     <string name="copy_markdown_source">Copy Markdown source</string>
+    <string name="copy_xml_source">Copy XML source</string>
     <string name="chat_hidden_user_message_placeholder">Auto-triggered user message (content hidden)</string>
     <string name="chat_hidden_user_message_badge">AUTO</string>
     <string name="info">Info</string>
@@ -948,6 +950,16 @@
     <string name="settings_summary_message_count_threshold_subtitle">Number of new messages to trigger summary (1-20)</string>
     <string name="settings_summary_custom_rules">Custom Summary Rules</string>
     <string name="settings_summary_custom_rules_desc">Extra rules sent when summarizing the conversation. Leave blank for none</string>
+    <string name="settings_summary_structure">Summary Structure</string>
+    <string name="settings_summary_section_enabled_desc">Turn off to omit this section from generated summaries</string>
+    <string name="settings_summary_section_title">Section Title</string>
+    <string name="settings_summary_section_title_desc">Title shown in the summary</string>
+    <string name="settings_summary_section_instruction">Section Instructions</string>
+    <string name="settings_summary_section_instruction_desc">Describe what this section should record</string>
+    <string name="settings_summary_dialogue_review">Conversation Review</string>
+    <string name="settings_summary_dialogue_review_desc">Append a program-generated record of users, assistants, and tool calls to the end of the summary</string>
+    <string name="settings_summary_dialogue_review_title">Review Title</string>
+    <string name="settings_summary_dialogue_review_title_desc">Title displayed at the end of the summary. Leave blank to use the default title</string>
     
     <string name="settings_section_display">Display and Behavior</string>
 
@@ -1071,8 +1083,9 @@
     <string name="tag_count_locked_status">Selected %1$d / Limit %2$d</string>
     
     <!-- Package Manager Screen -->
-    <string name="packages">Packages</string>
+    <string name="packages">Scripts</string>
     <string name="skills">Skills</string>
+    <string name="package_tab_skills">Skill</string>
     <string name="show_to_ai_short">AI</string>
     <string name="package_manager">Package Manager</string>
     <string name="available_packages">Available Packages</string>
@@ -1099,6 +1112,10 @@
     <string name="open_file_manager">Open File Manager</string>
     <string name="navigate_to_external_files">Please navigate to Android/data/com.ai.assistance.operit/files/packages directory</string>
     <string name="package_js_only">Only JavaScript (.js) and ToolPkg (.toolpkg) files are supported</string>
+    <string name="pkg_toolpkg_api_version">ToolPkg API: %1$s</string>
+    <string name="toolpkg_api_version_label">ToolPkg API version</string>
+    <string name="toolpkg_api_version_value">ToolPkg API version: %1$s</string>
+    <string name="pkg_toolpkg_requires">Required packages: %1$s</string>
     <string name="pkg_toolpkg_subpackages">ToolPkg Subpackages</string>
     <string name="pkg_toolpkg_version">Version: %1$s</string>
     <string name="pkg_toolpkg_resources">Resources: %1$d</string>
@@ -1481,6 +1498,110 @@
     <string name="title_activity_crash_report">Application Error</string>
     <string name="title_activity_data_recovery">Data Recovery</string>
     <string name="shortcut_data_recovery">Data Recovery</string>
+    <string name="data_recovery_raw_snapshot_section">Raw snapshot</string>
+    <string name="data_recovery_raw_snapshot_description">Export packages internal files, shared_prefs, datastore, databases, and the Android/data package directory. Import replaces the current app data.</string>
+    <string name="data_recovery_export_snapshot">Export snapshot</string>
+    <string name="data_recovery_import_snapshot">Import snapshot</string>
+    <string name="data_recovery_start_main_app">Launch main app</string>
+    <string name="data_recovery_file_management">File management</string>
+    <string name="data_recovery_file_management_description">This page does not open a file manager directly. To inspect or export internal files manually, open MT Manager, add a local storage repository, and select the Operit data repository. provider: %1$s</string>
+    <string name="data_recovery_sql_executor">SQL executor</string>
+    <string name="data_recovery_messages_size">messages size</string>
+    <string name="data_recovery_variants_size">variants size</string>
+    <string name="data_recovery_chats_fields">chats fields</string>
+    <string name="data_recovery_execute">Run</string>
+    <string name="data_recovery_sql_label">SQL</string>
+    <string name="data_recovery_import_snapshot_title">Import raw snapshot</string>
+    <string name="data_recovery_import_snapshot_message">Import replaces the current app data. Import this snapshot?</string>
+    <string name="data_recovery_import_action">Import</string>
+    <string name="data_recovery_cancel_action">Cancel</string>
+    <string name="data_recovery_started">Recovery process is ready</string>
+    <string name="data_recovery_affected_rows">Affected rows: %1$d</string>
+    <string name="data_recovery_query_result">Query results: %1$d rows</string>
+    <string name="data_recovery_launch_failed">Unable to launch the main app</string>
+    <string name="data_recovery_sql_empty">SQL is empty</string>
+    <string name="data_recovery_sql_running">Running SQL</string>
+    <string name="data_recovery_query_completed">Query complete: %1$d rows</string>
+    <string name="data_recovery_sql_completed">SQL execution complete</string>
+    <string name="data_recovery_database_health_section">Configuration and database check</string>
+    <string name="data_recovery_database_health_description">Checks whether configuration files and the database are working normally. A repair button appears only when a problem can be handled safely.</string>
+    <string name="data_recovery_database_check_action">Check configuration and database</string>
+    <string name="data_recovery_database_repair_action">Repair supported issues</string>
+    <string name="data_recovery_database_check_running">Checking configuration and database</string>
+    <string name="data_recovery_database_repair_running">Preserving source files and repairing configuration and database</string>
+    <string name="data_recovery_database_repair_completed">Configuration and database repair complete; verification passed</string>
+    <string name="data_recovery_database_repair_remaining">Repair actions completed, but configuration or database problems remain</string>
+    <string name="data_recovery_database_repair_failed_preserved">Repair failed, but the source files were preserved: %1$s</string>
+    <string name="data_recovery_database_repair_confirm_title">Confirm configuration and database repair</string>
+    <string name="data_recovery_database_repair_confirm_message">Unreadable configuration files and the current DB, WAL, SHM, and journal will be preserved in separate ZIP archives before the listed actions are executed. Content that cannot be handled safely will not be modified.</string>
+    <string name="data_recovery_database_repair_confirm_action">Start repair</string>
+    <string name="data_recovery_database_repair_archive">Database sources before repair:</string>
+    <string name="data_recovery_database_repair_plan">Repair actions to be executed</string>
+    <string name="data_recovery_database_repair_rebuild_indexes">Rebuild SQLite indexes</string>
+    <string name="data_recovery_database_repair_run_migrations">Run the released Room database migrations</string>
+    <string name="data_recovery_database_no_supported_repair">The current report has no repair operation that can be executed safely</string>
+    <string name="data_recovery_database_summary_healthy">Configuration and database checks passed</string>
+    <string name="data_recovery_database_summary_repairable">Configuration or database issues can be repaired</string>
+    <string name="data_recovery_database_summary_manual">Configuration or database issues require manual handling; source files were not modified</string>
+    <string name="data_recovery_database_checks_passed">%1$d/%2$d checks passed</string>
+    <string name="data_recovery_database_problem_summary">Issue: %1$s</string>
+    <string name="data_recovery_configuration_details">Configuration file details</string>
+    <string name="data_recovery_database_details">Database details</string>
+    <string name="data_recovery_configuration_check_files">Configuration files</string>
+    <string name="data_recovery_configuration_files_none">No configuration file has been created yet</string>
+    <string name="data_recovery_configuration_directory_invalid">The configuration directory path is invalid; source files were not modified</string>
+    <string name="data_recovery_configuration_directory_unreadable">The configuration directory cannot be read; source files were not modified</string>
+    <string name="data_recovery_configuration_file_invalid_path">The configuration file path is invalid; the source file was not modified</string>
+    <string name="data_recovery_configuration_file_corrupt">The configuration file cannot be read and can be reset after preserving the source</string>
+    <string name="data_recovery_configuration_file_check_failed">The configuration file check failed; the source file was not modified</string>
+    <string name="data_recovery_configuration_files_ok">Checked %1$d configuration files; all are readable</string>
+    <string name="data_recovery_configuration_no_supported_repair">The configuration report has no repair operation that can be executed safely</string>
+    <string name="data_recovery_configuration_changed_before_repair">Configuration file %1$s changed before repair, so the operation was stopped</string>
+    <string name="data_recovery_configuration_delete_failed">Unable to reset configuration file %1$s</string>
+    <string name="data_recovery_configuration_repair_reset_files">Reset %1$d unreadable configuration files</string>
+    <string name="data_recovery_configuration_repair_archive">Configuration sources before repair:</string>
+    <string name="data_recovery_database_check_owner">Database connection</string>
+    <string name="data_recovery_database_check_owner_failed">Unable to close the current Room owner: %1$s</string>
+    <string name="data_recovery_database_check_file">Database file</string>
+    <string name="data_recovery_database_file_missing">app_database does not exist</string>
+    <string name="data_recovery_database_file_invalid_path">The app_database path is not a regular file</string>
+    <string name="data_recovery_database_file_ok">Database file is readable, size %1$d bytes</string>
+    <string name="data_recovery_database_check_sidecars">SQLite sidecar files</string>
+    <string name="data_recovery_database_sidecars_invalid">These sidecar paths are not regular files: %1$s</string>
+    <string name="data_recovery_database_sidecars_none">No WAL, SHM, or journal file was found</string>
+    <string name="data_recovery_database_check_open">SQLite open check</string>
+    <string name="data_recovery_database_open_failed">Unable to open database: %1$s</string>
+    <string name="data_recovery_database_open_ok">Database opened successfully in read-only mode</string>
+    <string name="data_recovery_database_corruption_reported">SQLite reported database content corruption</string>
+    <string name="data_recovery_database_check_queries">SQLite check commands</string>
+    <string name="data_recovery_database_check_queries_failed">Database check command failed: %1$s</string>
+    <string name="data_recovery_database_check_integrity">SQLite integrity</string>
+    <string name="data_recovery_database_integrity_ok">PRAGMA quick_check returned ok</string>
+    <string name="data_recovery_database_check_version">Room database version</string>
+    <string name="data_recovery_database_version_current">Current version is %1$d and matches the application</string>
+    <string name="data_recovery_database_version_old">Current version is %1$d and can migrate to version %2$d</string>
+    <string name="data_recovery_database_version_newer">Database version %1$d is newer than application version %2$d</string>
+    <string name="data_recovery_database_version_invalid">Database version %1$d is invalid</string>
+    <string name="data_recovery_database_check_foreign_keys">Foreign key check</string>
+    <string name="data_recovery_database_foreign_keys_ok">No foreign key violations were found</string>
+    <string name="data_recovery_database_foreign_keys_failed">Found %1$d foreign key violations</string>
+    <string name="data_recovery_database_check_process">Repair process boundary</string>
+    <string name="data_recovery_database_main_process_running">The main application process is still running. Fully close it and check again.</string>
+    <string name="data_recovery_database_main_process_unknown">The main application process state cannot be verified, so configuration and database writes are disabled.</string>
+    <string name="data_recovery_database_main_process_stopped">The main application process is not running; isolated validation and the reported repair actions can be executed safely.</string>
+    <string name="data_recovery_database_check_room_schema">Room schema and migrations</string>
+    <string name="data_recovery_database_room_schema_process_blocked">The main application process has not stopped, so no isolated database copy was created.</string>
+    <string name="data_recovery_database_room_schema_sqlite_blocked">SQLite checks did not pass, so Room schema validation was not executed.</string>
+    <string name="data_recovery_database_room_schema_current_ok">The isolated copy passed Room validation for tables, columns, foreign keys, and indexes.</string>
+    <string name="data_recovery_database_room_schema_migration_ok">The isolated copy migrated to version %1$d and passed complete Room schema validation.</string>
+    <string name="data_recovery_database_room_schema_failed">The isolated copy did not pass Room schema or migration-chain validation, so the repair action remains disabled.</string>
+    <string name="data_recovery_export_running">Exporting raw snapshot</string>
+    <string name="data_recovery_export_completed">Raw snapshot export complete</string>
+    <string name="data_recovery_restore_running">Importing raw snapshot</string>
+    <string name="data_recovery_restore_completed">Raw snapshot import complete. Restart the app.</string>
+    <string name="data_recovery_export_progress">Export: %1$s</string>
+    <string name="data_recovery_restore_progress">Import: %1$s</string>
+    <string name="data_recovery_progress_percent"> %1$d%%</string>
 
     <!-- Crash Report Screen -->
     <string name="crash_report_header">The application has encountered an unrecoverable error and needs to restart.</string>
@@ -1654,6 +1775,7 @@
     <string name="message_info_token_input_short">↑</string>
     <string name="message_info_token_output_short">↓</string>
     <string name="message_info_token_cached_short">Cached</string>
+    <string name="message_info_token_hit_rate_short">Hit rate</string>
     <string name="message_info_unavailable">Not recorded</string>
     <string name="selected_content_copied">Selected content copied</string>
     <string name="requesting_root_permission">Requesting Root permission...</string>
@@ -2875,6 +2997,15 @@
     <string name="test_item_image">Image</string>
     <string name="test_item_audio">Audio</string>
     <string name="test_item_video">Video</string>
+    <string name="test_media_image_understood">This model can understand images</string>
+    <string name="test_media_audio_understood">This model can understand audio</string>
+    <string name="test_media_video_understood">This model can understand video</string>
+    <string name="test_media_image_unverified">The image request succeeded, but understanding could not be verified</string>
+    <string name="test_media_audio_unverified">The audio request succeeded, but understanding could not be verified</string>
+    <string name="test_media_video_unverified">The video request succeeded, but understanding could not be verified</string>
+    <string name="test_media_unverified">Connected, but not verified</string>
+    <string name="test_result_expand">Expand</string>
+    <string name="test_result_collapse">Collapse</string>
     <string name="expand_desc">Expand</string>
     <string name="selected_desc">Selected</string>
     <string name="functional_config_warning_image_unsupported">Warning: the selected model is not marked as “supports vision”, so image recognition may not work. Switch to a model that supports vision and enable “Model supports vision”.</string>
@@ -4007,6 +4138,10 @@
     <string name="enable_direct_video_processing_desc">When enabled, video will be sent directly to the AI for processing instead of tool-based frame extraction/analysis</string>
     <string name="enable_google_search">Enable Google Search</string>
     <string name="enable_google_search_desc">When enabled, Gemini will use Google Search to enhance responses (may incur additional charges)</string>
+    <string name="enable_deepseek_web_search">Enable DeepSeek web search</string>
+    <string name="enable_deepseek_web_search_desc">When using a DeepSeek Responses endpoint, allow the model to use server-side web search.</string>
+    <string name="enable_codex_web_search">Enable Codex web search</string>
+    <string name="enable_codex_web_search_desc">When signed in to Codex, allow the model to use server-side web search.</string>
     <string name="enable_claude_1h_prompt_cache">Enable Claude 1-hour prompt cache</string>
     <string name="enable_claude_1h_prompt_cache_desc">When enabled, Claude and Claude-compatible providers use a 1-hour prompt cache TTL</string>
     <string name="enable_tool_call">Model supports ToolCall</string>
@@ -4014,6 +4149,10 @@
     <string name="enable_deepseek_reasoning">Enable DeepSeek Reasoning Mode</string>
     <string name="enable_deepseek_reasoning_desc">When enabled, content within &lt;think&gt; tags will be sent as reasoning_content to DeepSeek models, supporting tool invocation for reasoning models like DeepSeek-R1</string>
     <string name="search_sources">Search Sources</string>
+    <string name="search_query_label">Query</string>
+    <string name="search_action_label">Action</string>
+    <string name="search_status_label">Status</string>
+    <string name="search_source_count">%1$d sources</string>
     <string name="api_settings_saved">API settings saved</string>
     <string name="save_api_settings">Save API Settings</string>
     <string name="available_models_list">Available Models List</string>
@@ -4028,9 +4167,9 @@
     <string name="model_name_multiple_hint"> (can use comma to separate multiple models)</string>
     <string name="auto_save_failed">Auto save failed</string>
     <!-- API Provider names -->
-    <string name="provider_openai">OpenAI (GPT Series)</string>
+    <string name="provider_openai">ChatGPT API</string>
     <string name="provider_xai">SpaceXAI (Grok)</string>
-    <string name="provider_openai_responses">OpenAI (Responses API)</string>
+    <string name="provider_openai_responses">ChatGPT Responses API</string>
     <string name="provider_openai_responses_generic">OpenAI Responses (Generic)</string>
     <string name="provider_anthropic">Anthropic (Claude Series)</string>
     <string name="provider_anthropic_generic">Anthropic (Generic)</string>
@@ -4067,6 +4206,8 @@
     <string name="provider_mnn">MNN Local Inference</string>
     <string name="select_api_provider_title">Select API Provider</string>
     <string name="search_providers">Search providers</string>
+    <string name="provider_section_generic_compatible">Generic Compatibility</string>
+    <string name="provider_section_proprietary">Dedicated Providers</string>
 
     <!-- llama.cpp Local Inference -->
     <string name="llama_local_model_tip">Local models are usually weaker. Consider disabling memory links and disabling tools for chat.</string>
@@ -5163,10 +5304,13 @@
     <string name="show_message_token_stats_description">Show compact token upload, output, and cache info below AI messages</string>
     <string name="show_message_timing_stats">Show Message Timing Summary</string>
     <string name="show_message_timing_stats_description">Show first-token and generation timing below AI messages</string>
+    <string name="show_message_token_speed">Show Message Token Generation Rate</string>
+    <string name="show_message_token_speed_description">Show output token generation rate below AI messages (t/s)</string>
     <string name="show_message_timestamp">Show Message Time</string>
     <string name="show_message_timestamp_description">Show the time of that AI message below it</string>
-    <string name="chat_message_token_stats_compact">token: %1$d ↑ %3$d (cache: %2$d) ↓ %4$d</string>
+    <string name="chat_message_token_stats_compact">token: %1$d ↑ %3$d (cache: %2$d) ↓ %4$d (hit: %5$s)</string>
     <string name="chat_message_timing_stats_compact">usage: %1$s (first %2$s out %3$s)</string>
+    <string name="chat_message_token_speed_compact">%1$s t/s</string>
     <string name="chat_message_timestamp_compact">time: %1$s</string>
     <string name="global_user_name">Global User Name</string>
     <string name="system_display_settings">System Display Settings</string>
@@ -5249,6 +5393,9 @@
     <string name="mood_tag_block">Mood Tag</string>
     <string name="thinking_tools_group_title_with_count">Thinking &amp; Tool Calls (%1$d)</string>
     <string name="tools_group_title_with_count">Tool Calls (%1$d)</string>
+    <string name="search_group_title">Search</string>
+    <string name="thinking_search_group_title">Thinking and searching</string>
+    <string name="thinking_search_tools_group_title_with_count">Thinking, searching, and calling tools (%1$d)</string>
     
     <!-- Backup Settings Screen -->
     <string name="backup_data_overview">Data Overview</string>
@@ -5625,6 +5772,7 @@
     <string name="toolreg_update_chat_title_desc">Update chat title: %1$s</string>
     <string name="toolreg_delete_chat_desc">Delete chat: %1$s</string>
     <string name="toolreg_send_message_to_ai_desc">Send message to AI: %1$s</string>
+    <string name="toolreg_call_chat_model_desc">Call function model: %1$s</string>
     <string name="toolreg_list_character_cards_desc">List all character cards</string>
     <string name="toolreg_get_chat_messages_desc">Get chat messages: %1$s%2$s%3$s</string>
     <string name="toolreg_list_files_desc">List directory: %1$s%2$s</string>
@@ -6288,6 +6436,13 @@
 
     <!-- Workflow -->
     <string name="workflow_load_failed">Failed to load workflow</string>
+    <string name="workflow_storage_dir_unavailable">Unable to create workflow directory: %1$s</string>
+    <string name="workflow_storage_dir_unreadable">Unable to read workflow directory: %1$s</string>
+    <string name="workflow_storage_path_not_directory">Workflow storage path is not a directory: %1$s</string>
+    <string name="workflow_storage_file_parent_missing">Workflow file has no parent directory: %1$s</string>
+    <string name="workflow_storage_file_root_invalid">Workflow file format is invalid: %1$s is not a JSON object</string>
+    <string name="workflow_storage_invalid_files">Found %1$d invalid workflow file(s), skipped: %2$s</string>
+    <string name="workflow_storage_single_file_invalid">Workflow file format is invalid and cannot be opened: %1$s</string>
     <string name="workflow_create_failed">Failed to create workflow</string>
     <string name="workflow_update_condition_failed">Failed to update connection condition</string>
     <string name="workflow_update_failed">Failed to update workflow</string>
@@ -7759,7 +7914,7 @@
     <string name="market_tab_mine">Mine</string>
     <string name="market_category_type_all">All</string>
     <string name="market_category_type_script">Script</string>
-    <string name="market_category_type_package">Package</string>
+    <string name="market_category_type_package">Plugin</string>
     <string name="market_category_type_skill">Skill</string>
     <string name="market_category_type_mcp">MCP</string>
     <string name="market_category_search_research">Search &amp; Research</string>
@@ -8054,6 +8209,7 @@
     <string name="artifact_publish_locked_name_must_match_source">When publishing based on a version, the plugin name must match the source version</string>
     <string name="artifact_publish_published_version_readonly">The version number of a published node cannot be modified</string>
     <string name="artifact_publish_toolpkg_version_readonly">ToolPkg publish version comes from the package manifest and cannot be edited before publishing</string>
+    <string name="artifact_publish_toolpkg_api_version_readonly">ToolPkg API version comes from the package manifest and cannot be edited before publishing</string>
     <string name="artifact_publish_save_artifact_info">Save artifact info</string>
     <string name="artifact_publish_publish_update_version">Publish update version</string>
     <string name="artifact_publish_confirm_save_artifact_info">Confirm save artifact info</string>
@@ -8261,17 +8417,17 @@
     <string name="markdown_link_not_openable">This link points to a reference inside the document and cannot be opened</string>
     <string name="openai_file_omitted">File content omitted, current model does not support file processing</string>
 
-    <string name="provider_openai_codex">OpenAI Codex (ChatGPT OAuth)</string>
-    <string name="onboarding_config_codex_login_required">Sign in to OpenAI Codex first</string>
-    <string name="codex_login_title">Sign in to OpenAI Codex</string>
+    <string name="provider_openai_codex">Codex</string>
+    <string name="onboarding_config_codex_login_required">Sign in to Codex first</string>
+    <string name="codex_login_title">Sign in to Codex</string>
     <string name="codex_login_starting">Preparing Codex sign-in...</string>
     <string name="codex_login_waiting">Complete sign-in in your browser</string>
     <string name="codex_login_action">Sign in with ChatGPT</string>
-    <string name="codex_login_success">OpenAI Codex sign-in succeeded</string>
-    <string name="codex_login_failed">OpenAI Codex sign-in failed: %1$s</string>
+    <string name="codex_login_success">Codex sign-in succeeded</string>
+    <string name="codex_login_failed">Codex sign-in failed: %1$s</string>
     <string name="codex_logout_action">Sign out of Codex</string>
-    <string name="codex_logout_success">Signed out of OpenAI Codex</string>
-    <string name="codex_auth_title">OpenAI Codex account</string>
+    <string name="codex_logout_success">Signed out of Codex</string>
+    <string name="codex_auth_title">Codex account</string>
     <string name="codex_auth_not_logged_in">Sign in with ChatGPT to use Codex subscription access</string>
     <string name="codex_auth_account">Account: %1$s</string>
     <string name="codex_endpoint_fixed">The Codex endpoint is fixed by the system</string>
@@ -8287,4 +8443,22 @@
     <string name="codex_reset_after_days">Resets in %1$d days</string>
     <string name="codex_reset_after_clock">Resets in %1$02d:%2$02d</string>
     <string name="conversation_media_file_link">&lt;link type=&quot;file&quot; id=&quot;%1$s&quot; filename=&quot;%2$s&quot;&gt;PDF&lt;/link&gt;</string>
+
+    <string name="package_market_origin_title">External Package Source Notice</string>
+    <string name="package_market_origin_message">This package is from the Operit market.\nPackage name: %1$s\nVersion: %2$s\nAuthor: %3$s\nPlease support the original author and be cautious of unauthorized resale.</string>
+    <string name="thinking_config_title">Thinking Configuration</string>
+    <string name="thinking_config_subtitle">Matches thinking parameters in rule order; first match takes effect</string>
+    <string name="thinking_config_rule_order_hint">Rules are matched from top to bottom; the first enabled and matching rule takes effect. Use the arrows on the right side of each rule to adjust the order.</string>
+    <string name="thinking_config_rule_move_up">Move rule up</string>
+    <string name="thinking_config_rule_move_down">Move rule down</string>
+    <string name="token_stats_unit_millions">M</string>
+    <string name="token_stats_unit_billions">B</string>
+    <string name="token_stats_unit_toggle_description">Current token unit is %1$s, click to switch to %2$s</string>
+    <string name="market_manage_submit_revision">Submit new version after modification</string>
+    <string name="market_manage_loading_request_title">Loading Request</string>
+    <string name="market_manage_loading_request_message">Request is being processed, please wait…</string>
+    <string name="market_version_incompatible_title">Cannot Download: Client Version Not Supported</string>
+    <string name="market_version_too_low_message">Current client version %1$s is lower than the minimum required version %2$s for this resource. Please update the client before downloading.</string>
+    <string name="market_version_too_high_message">Current client version %1$s is higher than the maximum supported version %2$s for this resource. Please use a supported client version.</string>
+    <string name="thinking_config_invalid_json">Invalid Thinking Configuration</string>
 </resources>

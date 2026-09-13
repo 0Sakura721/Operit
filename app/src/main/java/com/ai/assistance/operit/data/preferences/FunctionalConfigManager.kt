@@ -121,8 +121,10 @@ class FunctionalConfigManager(private val context: Context) {
                 decoded: Map<String, FunctionConfigMapping>
         ): Map<FunctionType, FunctionConfigMapping> {
             val normalized = defaultMapping().toMutableMap()
+            val functionTypesByName = FunctionType.values().associateBy { it.name }
             decoded.forEach { (key, value) ->
-                normalized[FunctionType.valueOf(key)] = value
+                val functionType = functionTypesByName[key] ?: return@forEach
+                normalized[functionType] = value
             }
             return normalized
         }

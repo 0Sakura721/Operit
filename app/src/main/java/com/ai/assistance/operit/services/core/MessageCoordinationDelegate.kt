@@ -12,6 +12,7 @@ import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
 import com.ai.assistance.operit.api.chat.llmprovider.AIService
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.CharacterCard
+import com.ai.assistance.operit.data.model.ConversationSummaryConfig
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.ChatMessage
@@ -1173,7 +1174,7 @@ class MessageCoordinationDelegate(
         members: List<com.ai.assistance.operit.data.model.GroupMemberConfig>,
         memberCardsById: Map<String, CharacterCard>
     ): String {
-        val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        val useEnglish = !LocaleUtils.usesChineseContent(context)
         val userName = displayPreferencesManager.globalUserName.first()?.trim().orEmpty()
         val formattedUserName = if (userName.isNotBlank()) {
             "$userName（用户）"
@@ -1776,13 +1777,13 @@ class MessageCoordinationDelegate(
                 val currentChat = chatHistoryDelegate.chatHistories.value.firstOrNull { it.id == originalChatId }
                 val isGroupChat = currentChat?.characterGroupId != null
 
-                val summaryCustomRules = readSummaryCustomRules()
+                val summaryConfig = readSummaryConfig()
                 val summaryMessage = AIMessageManager.summarizeMemory(
                     enhancedAiService = service,
                     messages = snapshotMessages,
                     autoContinue = false,
                     isGroupChat = isGroupChat,
-                    summaryCustomRules = summaryCustomRules
+                    summaryConfig = summaryConfig
                 ) ?: return@launch
 
                 val currentChatId = chatHistoryDelegate.currentChatId.value
@@ -1902,9 +1903,15 @@ class MessageCoordinationDelegate(
                 summaryInsertReferenceMessages.getOrNull(insertPosition - 1)?.timestamp
             val afterTimestamp =
                 summaryInsertReferenceMessages.getOrNull(insertPosition)?.timestamp
-            val summaryCustomRules = readSummaryCustomRules()
+            val summaryConfig = readSummaryConfig()
             val summaryMessage =
-                AIMessageManager.summarizeMemory(service, currentMessages, autoContinue, effectiveIsGroupChat, summaryCustomRules)
+                AIMessageManager.summarizeMemory(
+                    service,
+                    currentMessages,
+                    autoContinue,
+                    effectiveIsGroupChat,
+                    summaryConfig
+                )
 
             if (summaryMessage != null) {
                 chatHistoryDelegate.addSummaryMessage(
@@ -2013,8 +2020,8 @@ class MessageCoordinationDelegate(
         this.uiBridge = uiBridge
     }
 
-    /** 从当前聊天绑定的模型配置中读取自定义总结规则 */
-    suspend fun readSummaryCustomRules(): String? {
+    /** 从当前聊天绑定的模型配置中读取总结配置。 */
+    suspend fun readSummaryConfig(): ConversationSummaryConfig {
         return try {
             val functionalConfigManager = FunctionalConfigManager(context)
             val modelConfigManager = ModelConfigManager(context)
@@ -2022,13 +2029,18 @@ class MessageCoordinationDelegate(
             val chatMapping = functionMappings[FunctionType.CHAT] ?: FunctionConfigMapping()
             if (chatMapping.configId.isNotBlank()) {
                 val config = modelConfigManager.getModelConfigFlow(chatMapping.configId).first()
-                config.summaryCustomRules.takeIf { it.isNotBlank() }
+                ConversationSummaryConfig(
+                    globalRules = config.summaryCustomRules.takeIf { it.isNotBlank() },
+                    sectionOverrides = config.summarySectionOverrides,
+                    dialogueReviewEnabled = config.enableSummaryDialogueReview,
+                    dialogueReviewTitle = config.summaryDialogueReviewTitle
+                )
             } else {
-                null
+                ConversationSummaryConfig()
             }
         } catch (e: Exception) {
-            AppLogger.w(TAG, "读取自定义总结规则失败", e)
-            null
+            AppLogger.w(TAG, "读取总结配置失败", e)
+            ConversationSummaryConfig()
         }
     }
 }

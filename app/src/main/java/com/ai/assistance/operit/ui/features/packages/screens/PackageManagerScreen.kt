@@ -726,7 +726,7 @@ fun PackageManagerScreen(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            context.getString(R.string.skills),
+                            context.getString(R.string.package_tab_skills),
                             style = MaterialTheme.typography.bodySmall,
                             softWrap = false,
                             color = if (selectedTab == PackageTab.SKILLS)
@@ -839,6 +839,7 @@ fun PackageManagerScreen(
                              pluginOrder = pluginOrder,
                             onSavePluginOrder = { newOrder ->
                                 pluginOrder = newOrder
+                                packageManager.updateToolPkgPluginOrder(newOrder)
                                 scope.launch {
                                     apiPreferences.savePluginOrder(newOrder)
                                 }

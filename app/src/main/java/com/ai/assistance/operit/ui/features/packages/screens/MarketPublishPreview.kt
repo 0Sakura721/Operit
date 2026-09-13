@@ -47,6 +47,7 @@ import com.ai.assistance.operit.ui.features.packages.market.UnifiedMarketDetailH
 import com.ai.assistance.operit.ui.features.packages.market.UnifiedMarketDetailHeaderCard
 import com.ai.assistance.operit.ui.features.packages.market.UnifiedMarketDetailMetric
 import com.ai.assistance.operit.ui.features.packages.market.UnifiedMarketDetailParticipant
+import com.ai.assistance.operit.ui.features.packages.market.effectiveToolPkgApiVersion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,12 +56,14 @@ internal fun MarketPublishPreviewDialog(
     description: String,
     detail: String,
     version: String,
+    apiVersion: String?,
     author: String,
     logoAsset: ToolPkgLogoAsset?,
     onDismiss: () -> Unit
 ) {
     var selectedMode by rememberSaveable { mutableIntStateOf(0) }
     var selectedDetailTab by rememberSaveable { mutableIntStateOf(0) }
+    val effectiveApiVersion = apiVersion.effectiveToolPkgApiVersion()
     val previewTitle = title.trim().ifBlank { stringResource(R.string.artifact_publish_logo_market_preview_untitled) }
     val previewDescription =
         description.trim().ifBlank { stringResource(R.string.artifact_publish_logo_market_preview_empty_description) }
@@ -153,6 +156,7 @@ internal fun MarketPublishPreviewDialog(
                                     MarketBrowseCardModel(
                                         title = previewTitle,
                                         description = previewDescription,
+                                        toolPkgApiVersion = effectiveApiVersion,
                                         ownerUsername = previewAuthor,
                                         showAction = false
                                     ),
@@ -168,10 +172,16 @@ internal fun MarketPublishPreviewDialog(
                                         title = previewTitle,
                                         fallbackAvatarText = previewTitle.take(1),
                                         badges =
-                                            listOf(
-                                                stringResource(R.string.artifact_type_package),
-                                                "v$previewVersion"
-                                            ),
+                                            buildList {
+                                                add(stringResource(R.string.artifact_type_package))
+                                                add("v$previewVersion")
+                                                add(
+                                                    stringResource(
+                                                        R.string.toolpkg_api_version_value,
+                                                        effectiveApiVersion
+                                                    )
+                                                )
+                                            },
                                         participants =
                                             listOf(
                                                 UnifiedMarketDetailParticipant(

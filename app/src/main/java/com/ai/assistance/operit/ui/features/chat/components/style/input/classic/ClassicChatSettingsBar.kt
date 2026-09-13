@@ -160,8 +160,8 @@ fun ClassicChatSettingsBar(
     val modelConfigManager = remember { ModelConfigManager(context) }
     val configMappingWithIndex by
             functionalConfigManager.functionConfigMappingWithIndexFlow.collectAsState(initial = emptyMap())
-    var configSummaries by remember { mutableStateOf<List<ModelConfigSummary>>(emptyList()) }
-    LaunchedEffect(Unit) { configSummaries = modelConfigManager.getAllConfigSummaries() }
+    val configSummaries by
+            modelConfigManager.configSummariesFlow.collectAsState(initial = emptyList())
     val currentConfigMapping =
             configMappingWithIndex[FunctionType.CHAT] ?: FunctionConfigMapping(FunctionalConfigManager.DEFAULT_CONFIG_ID, 0)
     val isModelSelectionLockedByCharacterCard = !characterCardBoundChatModelConfigId.isNullOrBlank()

@@ -72,7 +72,17 @@ object ApiProviderConfigs {
         ProviderApiConfig(
             providerType = ApiProviderType.DEEPSEEK,
             defaultModelName = "deepseek-v4-flash",
-            defaultApiEndpoint = "https://api.deepseek.com/v1/chat/completions"
+            defaultApiEndpoint = "https://api.deepseek.com/v1/chat/completions",
+            endpointOptions = listOf(
+                ProviderEndpointOption(
+                    endpoint = "https://api.deepseek.com/v1/chat/completions",
+                    label = "Chat Completions"
+                ),
+                ProviderEndpointOption(
+                    endpoint = "https://api.deepseek.com/v1/responses",
+                    label = "Responses"
+                )
+            )
         ),
         ProviderApiConfig(
             providerType = ApiProviderType.BAIDU,

@@ -84,6 +84,11 @@ data class ChatExportResult(
     val chatCount: Int,
 )
 
+data class AddedMessageVariant(
+    val selectedVariantIndex: Int,
+    val message: ChatMessage,
+)
+
 class ChatHistoryManager private constructor(private val context: Context) {
     companion object {
         private const val TAG = "ChatHistoryManager"
@@ -236,6 +241,46 @@ class ChatHistoryManager private constructor(private val context: Context) {
             writer.append("}\n")
         }
         AppLogger.d(TAG, "流式导出 Operit 聊天记录完成，共 ${chatHistories.size} 个会话，目标=${file.absolutePath}")
+    }
+
+    private suspend fun exportOperitArchiveCsvStream(
+        file: File,
+        chatHistories: List<ChatHistory>,
+    ) {
+        AppLogger.d(TAG, "开始导出 Operit CSV 聊天记录，共 ${chatHistories.size} 个会话，目标=${file.absolutePath}")
+        BufferedWriter(
+            OutputStreamWriter(FileOutputStream(file), StandardCharsets.UTF_8),
+        ).use { writer ->
+            ChatHistoryCsv.writeHeader(writer)
+            chatHistories.forEachIndexed { index, chatHistory ->
+                val archivedChat = buildOperitArchivedChat(chatHistory)
+                ChatHistoryCsv.writeChat(writer, archivedChat)
+                archivedChat.messages.forEachIndexed { messageIndex, archivedMessage ->
+                    ChatHistoryCsv.writeMessage(
+                        writer = writer,
+                        chatId = archivedChat.id,
+                        orderIndex = messageIndex,
+                        message = archivedMessage.baseMessage,
+                    )
+                    archivedMessage.variants.forEach { variant ->
+                        ChatHistoryCsv.writeVariant(
+                            writer = writer,
+                            chatId = archivedChat.id,
+                            messageTimestamp = archivedMessage.baseMessage.timestamp,
+                            variant = variant,
+                        )
+                    }
+                }
+                writer.flush()
+                if ((index + 1) % 20 == 0 || index == chatHistories.lastIndex) {
+                    AppLogger.d(
+                        TAG,
+                        "CSV 导出进度: ${index + 1}/${chatHistories.size}，chatId=${archivedChat.id}，messages=${archivedChat.messages.size}",
+                    )
+                }
+            }
+        }
+        AppLogger.d(TAG, "CSV 导出 Operit 聊天记录完成，共 ${chatHistories.size} 个会话，目标=${file.absolutePath}")
     }
 
     private fun <T> decodeStreamElement(
@@ -1205,7 +1250,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
         chatId: String,
         messageTimestamp: Long,
         message: ChatMessage,
-    ): Int {
+    ): AddedMessageVariant {
         return chatMutex(chatId).withLock {
             val baseMessage =
                 chatContentDao.getMessageByTimestamp(chatId, messageTimestamp)
@@ -1215,14 +1260,15 @@ class ChatHistoryManager private constructor(private val context: Context) {
             }
             val nextVariantIndex =
                 chatContentDao.getVariantsForMessage(chatId, messageTimestamp).size + 1
-            messageVariantDao.insertVariant(
+            val variant =
                 MessageVariantEntity.fromChatMessage(
                     chatId = chatId,
                     messageTimestamp = messageTimestamp,
                     variantIndex = nextVariantIndex,
-                    message = message.copy(selectedVariantIndex = nextVariantIndex, variantCount = 1),
+                    message = message.copy(selectedVariantIndex = nextVariantIndex, variantCount = nextVariantIndex),
                 )
-            )
+            messageVariantDao.insertVariant(variant)
+            val persistedMessage = variant.applyTo(baseMessage.toChatMessage(), nextVariantIndex)
             messageDao.updateSelectedVariantIndex(chatId, messageTimestamp, nextVariantIndex)
             chatDao.getChatById(chatId)?.let { chat ->
                 chatDao.updateChatMetadata(
@@ -1234,7 +1280,10 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     currentWindowSize = chat.currentWindowSize
                 )
             }
-            nextVariantIndex
+            AddedMessageVariant(
+                selectedVariantIndex = nextVariantIndex,
+                message = persistedMessage,
+            )
         }
     }
 
@@ -1973,9 +2022,9 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     }
 
                     ExportFormat.CSV -> {
-                        val file = File(exportDir, "chat_backup_$timestamp.json")
+                        val file = File(exportDir, "chat_backup_$timestamp.csv")
                         pendingExportFile = file
-                        exportOperitArchiveJsonStream(file, chatHistoriesBasic)
+                        exportOperitArchiveCsvStream(file, chatHistoriesBasic)
                         file
                     }
                 }

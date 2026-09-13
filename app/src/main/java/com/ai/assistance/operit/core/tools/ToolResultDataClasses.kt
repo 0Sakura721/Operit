@@ -2157,6 +2157,32 @@ data class ChatMessagesResultData(
     }
 }
 
+@Serializable
+data class ChatCallTurnInfo(
+    val kind: String,
+    val content: String,
+    val toolName: String? = null,
+    val metadata: Map<String, JsonElement> = emptyMap()
+)
+
+/** 功能模型调用结果数据 */
+@Serializable
+data class ChatCallResultData(
+    val text: String,
+    val turns: List<ChatCallTurnInfo>,
+    val finishReason: String,
+    val metadata: Map<String, JsonElement> = emptyMap(),
+    val receivedAt: Long = System.currentTimeMillis()
+) : ToolResultData() {
+    override fun toString(): String {
+        return if (text.isNotBlank()) {
+            text
+        } else {
+            "Chat model call finished: $finishReason"
+        }
+    }
+}
+
 /** 角色卡列表结果数据 */
 @Serializable
 data class CharacterCardListResultData(
@@ -2676,6 +2702,7 @@ data class FunctionModelBindingResultData(
 data class ModelConfigConnectionTestItemResultData(
     val type: String,
     val success: Boolean,
+    val outcome: String,
     val error: String? = null
 )
 
@@ -2689,12 +2716,14 @@ data class ModelConfigConnectionTestResultData(
     val actualModelIndex: Int,
     val testedModelName: String,
     val success: Boolean,
+    val verified: Boolean,
     val totalTests: Int,
     val passedTests: Int,
+    val unverifiedTests: Int,
     val failedTests: Int,
     val tests: List<ModelConfigConnectionTestItemResultData>
 ) : ToolResultData() {
     override fun toString(): String {
-        return "Model config connection test: $configId, success=$success, passed=$passedTests/$totalTests"
+        return "Model config connection test: $configId, success=$success, verified=$verified, passed=$passedTests/$totalTests"
     }
 }

@@ -1,8 +1,12 @@
 package com.ai.assistance.operit.data.preferences
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.ai.assistance.operit.util.AppLogger
+import java.io.IOException
+import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,15 +22,8 @@ data class CodexAuthState(
 )
 
 class CodexAuthPreferences private constructor(context: Context) {
-    private val preferences = EncryptedSharedPreferences.create(
-        context,
-        STORE_NAME,
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val appContext = context.applicationContext
+    private var preferences = createPreferences(appContext)
 
     private val _authState = MutableStateFlow(readState())
     val authState: StateFlow<CodexAuthState?> = _authState.asStateFlow()
@@ -66,6 +63,18 @@ class CodexAuthPreferences private constructor(context: Context) {
     }
 
     private fun readState(): CodexAuthState? {
+        return try {
+            readStateFromPreferences()
+        } catch (error: SecurityException) {
+            // Restored encrypted values can be unreadable when Android Keystore kept the key
+            // device-local. Reset only Codex OAuth state so the settings screen can open.
+            AppLogger.e(TAG, "Codex OAuth credentials are unreadable; resetting encrypted store", error)
+            resetEncryptedStore()
+            null
+        }
+    }
+
+    private fun readStateFromPreferences(): CodexAuthState? {
         val accessToken = preferences.getString(KEY_ACCESS_TOKEN, null)?.trim()
         val refreshToken = preferences.getString(KEY_REFRESH_TOKEN, null)?.trim()
         val accountId = preferences.getString(KEY_ACCOUNT_ID, null)?.trim()
@@ -88,7 +97,13 @@ class CodexAuthPreferences private constructor(context: Context) {
         )
     }
 
+    private fun resetEncryptedStore() {
+        appContext.deleteSharedPreferences(STORE_NAME)
+        preferences = createEncryptedPreferences(appContext)
+    }
+
     companion object {
+        private const val TAG = "CodexAuthPreferences"
         private const val STORE_NAME = "codex_oauth_credentials"
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
@@ -104,6 +119,39 @@ class CodexAuthPreferences private constructor(context: Context) {
             return instance ?: synchronized(this) {
                 instance ?: CodexAuthPreferences(context.applicationContext).also { instance = it }
             }
+        }
+
+        private fun createPreferences(context: Context): SharedPreferences {
+            return try {
+                createEncryptedPreferences(context)
+            } catch (error: GeneralSecurityException) {
+                recreatePreferencesAfterUnreadableStore(context, error)
+            } catch (error: IOException) {
+                recreatePreferencesAfterUnreadableStore(context, error)
+            }
+        }
+
+        private fun recreatePreferencesAfterUnreadableStore(
+            context: Context,
+            error: Exception
+        ): SharedPreferences {
+            // Android backup restores SharedPreferences XML but not the app's Android Keystore
+            // entry. Tink then rejects the encrypted keyset with AEADBadTagException.
+            AppLogger.e(TAG, "Codex OAuth encrypted store cannot be opened; resetting it", error)
+            context.deleteSharedPreferences(STORE_NAME)
+            return createEncryptedPreferences(context)
+        }
+
+        private fun createEncryptedPreferences(context: Context): SharedPreferences {
+            return EncryptedSharedPreferences.create(
+                context,
+                STORE_NAME,
+                MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build(),
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
         }
     }
 }
