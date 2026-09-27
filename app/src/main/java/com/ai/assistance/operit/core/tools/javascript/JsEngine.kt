@@ -14,6 +14,7 @@ import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.core.tools.packTool.TOOLPKG_EVENT_MESSAGE_PROCESSING
 import com.ai.assistance.operit.core.tools.packTool.ToolPkgApiCompatibility
 import com.ai.assistance.operit.core.tools.packTool.ToolPkgApiVersion
+import com.ai.assistance.operit.core.tools.packTool.ToolPkgRuntimeMonitor
 import com.ai.assistance.operit.ui.main.navigation.AppRouteDiscoveryGateway
 import com.ai.assistance.operit.ui.main.navigation.AppRouterGateway
 import com.ai.assistance.operit.ui.main.navigation.RouteEntrySource
@@ -32,6 +33,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -90,6 +92,8 @@ class JsEngine(private val context: Context) {
         val packageChatId: String?,
         val toolPkgApiVersion: ToolPkgApiVersion?,
         val toolPkgLogSnapshot: JsToolPkgExecutionContext.LogSnapshot,
+        val runtimeMonitorCall: ToolPkgRuntimeMonitor.CallHandle?,
+        val runtimeFailureMessage: AtomicReference<String?>,
         val executionListener: JsExecutionListener?
     )
 
@@ -193,6 +197,30 @@ class JsEngine(private val context: Context) {
                 throw e
             }
         }
+    }
+
+    private fun quickJsMemorySample(resetPeak: Boolean): ToolPkgRuntimeMonitor.MemorySample? {
+        val engine = quickJs ?: return null
+        if (resetPeak) {
+            engine.resetMemoryPeak()
+        }
+        val usage = engine.getMemoryUsage()
+        return ToolPkgRuntimeMonitor.MemorySample(
+            timestampMs = System.currentTimeMillis(),
+            jsHeapUsedKb = usage.memoryUsedBytes / 1024L,
+            jsMallocUsedKb = usage.mallocSizeBytes / 1024L,
+            jsPeakMallocUsedKb = usage.peakMallocSizeBytes / 1024L
+        )
+    }
+
+    internal fun getQuickJsMemoryUsage(): QuickJsMemoryUsage? {
+        return quickJs?.getMemoryUsage()
+    }
+
+    /** QuickJS 运行线程的内核 tid，供 /proc/self/task 采样 CPU 用；引擎未创建时为 null。 */
+    internal fun getQuickJsRuntimeTid(): Long? {
+        val engine = quickJs ?: return null
+        return engine.getRuntimeTid().takeIf { it > 0 }
     }
 
     private fun interruptQuickJs(reason: String) {
@@ -312,6 +340,7 @@ class JsEngine(private val context: Context) {
         onIntermediateResult: ((Any?) -> Unit)?,
         dispatchIntermediateOnMain: Boolean,
         toolPkgApiVersion: ToolPkgApiVersion?,
+        runtimeMonitorCall: ToolPkgRuntimeMonitor.CallHandle?,
         executionListener: JsExecutionListener?
     ): ExecutionSession {
         return ExecutionSession(
@@ -327,6 +356,8 @@ class JsEngine(private val context: Context) {
                     ?.ifBlank { null },
             toolPkgApiVersion = toolPkgApiVersion,
             toolPkgLogSnapshot = toolPkgExecutionContext.capture(script, functionName, params),
+            runtimeMonitorCall = runtimeMonitorCall,
+            runtimeFailureMessage = AtomicReference(null),
             executionListener = executionListener
         )
     }
@@ -460,6 +491,11 @@ class JsEngine(private val context: Context) {
         val sessions = activeExecutionSessions.values.toList()
         activeExecutionSessions.clear()
         sessions.forEach { session ->
+            ToolPkgRuntimeMonitor.finishCall(
+                handle = session.runtimeMonitorCall,
+                success = false,
+                message = reason
+            )
             if (!session.future.isDone) {
                 session.future.complete(buildJsExecutionErrorPayload(reason))
             }
@@ -821,6 +857,14 @@ class JsEngine(private val context: Context) {
                     explicitApiVersion = toolPkgApiVersion
                 )
             val callId = nextExecutionCallId()
+            val runtimeMonitorStartMemory = quickJsMemorySample(resetPeak = true)
+            val runtimeMonitorCall =
+                ToolPkgRuntimeMonitor.beginCall(
+                    callId = callId,
+                    functionName = functionName,
+                    params = effectiveParams,
+                    startMemory = runtimeMonitorStartMemory
+                )
             val session =
                 createExecutionSession(
                     callId = callId,
@@ -831,6 +875,7 @@ class JsEngine(private val context: Context) {
                     onIntermediateResult = onIntermediateResult,
                     dispatchIntermediateOnMain = dispatchIntermediateOnMain,
                     toolPkgApiVersion = executionToolPkgApiVersion,
+                    runtimeMonitorCall = runtimeMonitorCall,
                     executionListener = executionListener
                 )
             activeExecutionSessions[callId] = session
@@ -882,6 +927,11 @@ class JsEngine(private val context: Context) {
                         e
                     )
                     removeExecutionSession(callId)
+                    ToolPkgRuntimeMonitor.finishCall(
+                        handle = session.runtimeMonitorCall,
+                        success = false,
+                        message = e.message ?: "dispatch failed"
+                    )
                     session.executionListener?.onFailed(callId, e.message ?: "dispatch failed")
                     if (!session.future.isDone) {
                         session.future.complete(buildJsExecutionErrorPayload(e.message ?: "dispatch failed"))
@@ -911,16 +961,23 @@ class JsEngine(private val context: Context) {
                     session.future.get(safeTimeoutSec, TimeUnit.SECONDS)
                 }
             removeExecutionSession(callId)
+            val runtimeFailureMessage = session.runtimeFailureMessage.get()
+            ToolPkgRuntimeMonitor.finishCall(
+                handle = session.runtimeMonitorCall,
+                success = runtimeFailureMessage == null,
+                message = runtimeFailureMessage,
+                endMemory = quickJsMemorySample(resetPeak = false)
+            )
             if (shouldLogTiming) {
                 logMessageTiming(
                     stage = "toolpkg.jsEngine.waitResult",
                     startTimeMs = waitResultStartTime,
-                    details = "function=$functionName, plugin=$timingPluginId, callId=$callId, success=true, resultType=${result?.javaClass?.simpleName ?: "null"}"
+                    details = "function=$functionName, plugin=$timingPluginId, callId=$callId, success=${runtimeFailureMessage == null}, resultType=${result?.javaClass?.simpleName ?: "null"}"
                 )
                 logMessageTiming(
                     stage = "toolpkg.jsEngine.total",
                     startTimeMs = totalStartTime,
-                    details = "function=$functionName, plugin=$timingPluginId, callId=$callId, success=true"
+                        details = "function=$functionName, plugin=$timingPluginId, callId=$callId, success=${runtimeFailureMessage == null}"
                 )
             }
             result
@@ -952,6 +1009,12 @@ class JsEngine(private val context: Context) {
                 e
             )
             removeExecutionSession(callId)
+            ToolPkgRuntimeMonitor.finishCall(
+                handle = session.runtimeMonitorCall,
+                success = false,
+                message = failureReason,
+                endMemory = quickJsMemorySample(resetPeak = false)
+            )
             cancelExecutionSessionInJs(callId, failureReason)
             session.executionListener?.onFailed(callId, failureReason)
             if (shouldLogTiming) {
@@ -2501,6 +2564,12 @@ class JsEngine(private val context: Context) {
                 val logMessage = extractErrorLogMessage(error)
                 val enrichedLogMessage = withToolPkgCodeContext(session, logMessage)
                 AppLogger.e(TOOLPKG_TAG, withToolPkgPluginTag(session, "JS ERROR: $enrichedLogMessage"))
+                ToolPkgRuntimeMonitor.recordLog(
+                    handle = session.runtimeMonitorCall,
+                    level = "error",
+                    message = logMessage
+                )
+                session.runtimeFailureMessage.compareAndSet(null, logMessage)
                 session.executionListener?.onFailed(callId, logMessage)
 
                 completeCallFuture(
@@ -2560,7 +2629,16 @@ class JsEngine(private val context: Context) {
         fun logInfoForCall(callId: String, message: String) {
             val session = resolveExecutionSession(callId)
             session?.executionListener?.onCallLog(callId, "info", message)
+            ToolPkgRuntimeMonitor.recordLog(session?.runtimeMonitorCall, "info", message)
             AppLogger.i(TOOLPKG_TAG, withToolPkgPluginTag(session, message))
+        }
+
+        @JavascriptInterface
+        fun logWarnForCall(callId: String, message: String) {
+            val session = resolveExecutionSession(callId)
+            session?.executionListener?.onCallLog(callId, "warn", message)
+            ToolPkgRuntimeMonitor.recordLog(session?.runtimeMonitorCall, "warn", message)
+            AppLogger.w(TOOLPKG_TAG, withToolPkgPluginTag(session, message))
         }
 
         @JavascriptInterface
@@ -2572,6 +2650,7 @@ class JsEngine(private val context: Context) {
         fun logErrorForCall(callId: String, message: String) {
             val session = resolveExecutionSession(callId)
             session?.executionListener?.onCallLog(callId, "error", message)
+            ToolPkgRuntimeMonitor.recordLog(session?.runtimeMonitorCall, "error", message)
             AppLogger.e(TOOLPKG_TAG, withToolPkgPluginTag(session, message))
         }
 
@@ -2603,6 +2682,11 @@ class JsEngine(private val context: Context) {
                 errorStack: String
         ) {
             val session = resolveExecutionSession(callId)
+            ToolPkgRuntimeMonitor.recordLog(
+                handle = session?.runtimeMonitorCall,
+                level = "error",
+                message = "$errorType: $errorMessage\nLine: $errorLine\nStack: $errorStack"
+            )
             AppLogger.e(
                     TOOLPKG_TAG,
                     withToolPkgPluginTag(

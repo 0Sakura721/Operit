@@ -2948,7 +2948,7 @@ Sekarang Anda dapat menggunakan mode AutoGLM di antarmuka percakapan.</string>
     <string name="chat_history_selected_actions">Tindakan untuk obrolan terpilih (%1$d)</string>
     <string name="chat_history_selected_actions_title">Tindakan obrolan terpilih</string>
     <string name="chat_memory_rebuild_title">Bangun pustaka memori per jendela</string>
-    <string name="chat_memory_rebuild_subtitle">Ekstrak memori dari jendela terbatas pesan asli pengguna dan asisten</string>
+    <string name="chat_memory_rebuild_subtitle">Pilih rentang waktu dan ekstrak memori dari jendela terbatas pesan asli pengguna dan asisten</string>
     <string name="chat_memory_rebuild_window_size">Pesan per jendela</string>
     <string name="chat_memory_rebuild_window_size_value">%1$d pesan</string>
     <string name="chat_memory_rebuild_start">Bangun memori untuk %1$d obrolan terpilih</string>
@@ -2960,7 +2960,16 @@ Sekarang Anda dapat menggunakan mode AutoGLM di antarmuka percakapan.</string>
     <string name="chat_memory_rebuild_failed">Pembangunan gagal: %1$s</string>
     <string name="chat_memory_rebuild_confirm_title">Konfirmasi pembangunan memori</string>
     <string name="chat_memory_rebuild_confirm_message">%1$d obrolan yang dipilih akan dikirim ke model memori secara berurutan, dengan %2$d pesan per jendela. Proses ini membuat permintaan model dan menulis ke ruang memori yang sesuai.</string>
+    <string name="chat_memory_rebuild_confirm_message_range">Pesan dari %2$s hingga %3$s dalam %1$d obrolan terpilih akan dikirim ke model memori secara berurutan, dengan %4$d pesan per jendela. Proses ini membuat permintaan model dan menulis ke ruang memori yang sesuai.</string>
     <string name="chat_memory_rebuild_confirm_action">Mulai pembangunan</string>
+    <string name="chat_memory_rebuild_time_scope">Rentang waktu pesan</string>
+    <string name="chat_memory_rebuild_time_scope_all">Semua pesan</string>
+    <string name="chat_memory_rebuild_time_scope_range">Rentang waktu kustom</string>
+    <string name="chat_memory_rebuild_time_scope_pick">Pilih tanggal mulai dan akhir</string>
+    <string name="chat_memory_rebuild_time_scope_value">%1$s – %2$s</string>
+    <string name="chat_memory_rebuild_date_range_title">Pilih rentang waktu memori</string>
+    <string name="chat_memory_rebuild_date_range_confirm">OK</string>
+    <string name="chat_memory_rebuild_empty_range">Rentang waktu yang dipilih tidak berisi pesan pengguna yang dapat digunakan untuk membangun memori</string>
     <string name="long_press_to_manage">Tekan lama untuk mengelola</string>
     <string name="edit_title_desc">Edit judul</string>
     <string name="reorder">Susun ulang</string>
@@ -3565,7 +3574,7 @@ Sekarang Anda dapat menggunakan mode AutoGLM di antarmuka percakapan.</string>
     <string name="actual_request_url">URL permintaan aktual: %s</string>
     <string name="endpoint_completion_hint">Petunjuk: Jika Anda memasukkan URL dasar, sistem akan melengkapi jalurnya secara otomatis. Untuk menonaktifkan, tambahkan tanda # di akhir URL.</string>
     <string name="api_key">Kunci API</string>
-    <string name="api_key_placeholder_default">Gunakan Kunci default, dapat langsung dimasukkan</string>
+    <string name="api_key_placeholder_default">Belum ada kunci. Masukkan langsung atau gunakan kumpulan kunci API</string>
     <string name="api_key_placeholder_custom">Masukkan kunci API</string>
     <string name="model_name">Nama model</string>
     <string name="model_name_placeholder">Contoh: gpt-4, claude-3-opus-20240229...</string>

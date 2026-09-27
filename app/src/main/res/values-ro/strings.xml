@@ -3401,7 +3401,7 @@ Acum poate fi utilizat în interfața de dialog AutoGLM A devenit un model.</str
     <string name="chat_history_selected_actions">Acțiuni pentru conversațiile selectate (%1$d)</string>
     <string name="chat_history_selected_actions_title">Acțiuni pentru conversațiile selectate</string>
     <string name="chat_memory_rebuild_title">Construiește biblioteca de memorie pe ferestre</string>
-    <string name="chat_memory_rebuild_subtitle">Extrage amintiri din ferestre limitate de mesaje originale ale utilizatorului și asistentului</string>
+    <string name="chat_memory_rebuild_subtitle">Alege un interval de timp și extrage amintiri din ferestre limitate de mesaje originale ale utilizatorului și asistentului</string>
     <string name="chat_memory_rebuild_window_size">Mesaje per fereastră</string>
     <string name="chat_memory_rebuild_window_size_value">%1$d mesaje</string>
     <string name="chat_memory_rebuild_start">Construiește memoria pentru %1$d conversații selectate</string>
@@ -3413,7 +3413,16 @@ Acum poate fi utilizat în interfața de dialog AutoGLM A devenit un model.</str
     <string name="chat_memory_rebuild_failed">Construire eșuată: %1$s</string>
     <string name="chat_memory_rebuild_confirm_title">Confirmă construirea memoriei</string>
     <string name="chat_memory_rebuild_confirm_message">Cele %1$d conversații selectate vor fi trimise modelului de memorie în ordine, cu %2$d mesaje pe fereastră. Procesul face solicitări către model și scrie în spațiul de memorie corespunzător.</string>
+    <string name="chat_memory_rebuild_confirm_message_range">Mesajele din %2$s până în %3$s din cele %1$d conversații selectate vor fi trimise modelului de memorie în ordine, cu %4$d mesaje pe fereastră. Procesul face solicitări către model și scrie în spațiul de memorie corespunzător.</string>
     <string name="chat_memory_rebuild_confirm_action">Începe construirea</string>
+    <string name="chat_memory_rebuild_time_scope">Intervalul de timp al mesajelor</string>
+    <string name="chat_memory_rebuild_time_scope_all">Toate mesajele</string>
+    <string name="chat_memory_rebuild_time_scope_range">Interval personalizat</string>
+    <string name="chat_memory_rebuild_time_scope_pick">Alege datele de început și de sfârșit</string>
+    <string name="chat_memory_rebuild_time_scope_value">%1$s – %2$s</string>
+    <string name="chat_memory_rebuild_date_range_title">Alege un interval de memorie</string>
+    <string name="chat_memory_rebuild_date_range_confirm">OK</string>
+    <string name="chat_memory_rebuild_empty_range">Intervalul selectat nu conține mesaje ale utilizatorului pentru construirea memoriei</string>
     <string name="long_press_to_manage">Apăsați lung pe „Gestionare”</string>
     <string name="edit_title_desc">Editează titlul</string>
     <string name="reorder">Reorder</string>
@@ -3844,7 +3853,7 @@ Acum poate fi utilizat în interfața de dialog AutoGLM A devenit un model.</str
     <string name="actual_request_url">Adresa efectivă a cererii: %s</string>
     <string name="endpoint_completion_hint">Sfat: Dacă introduceți elementul de bazăURL, sistemul va completa automat calea. Dacă doriți să dezactivați această funcție, vă rugăm săURLAdăugare la sfârșit#Nr.</string>
     <string name="api_key">APICheie</string>
-    <string name="api_key_placeholder_default">Utilizarea setărilor impliciteKey, se poate introduce direct</string>
+    <string name="api_key_placeholder_default">Nicio cheie setată. Introdu-o aici sau utilizează rezervorul de chei API</string>
     <string name="api_key_placeholder_custom">IntroducereAPICheie</string>
     <string name="model_name">Denumirea modelului</string>
     <string name="model_name_placeholder">De exemplu: gpt-4, claude-3-opus-20240229...</string>

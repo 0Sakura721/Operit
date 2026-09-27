@@ -648,7 +648,7 @@ internal fun buildExecutionRuntimeBridgeScript(): String {
                         console: {
                             log: function() { NativeInterface.logInfoForCall(callId, Array.prototype.slice.call(arguments).join(' ')); },
                             info: function() { NativeInterface.logInfoForCall(callId, Array.prototype.slice.call(arguments).join(' ')); },
-                            warn: function() { NativeInterface.logInfoForCall(callId, Array.prototype.slice.call(arguments).join(' ')); },
+                            warn: function() { NativeInterface.logWarnForCall(callId, Array.prototype.slice.call(arguments).join(' ')); },
                             error: function() { NativeInterface.logErrorForCall(callId, Array.prototype.slice.call(arguments).join(' ')); }
                         }
                     };

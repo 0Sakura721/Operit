@@ -47,4 +47,24 @@ class PastedTextAttachmentTest {
 
         assertNull(pastedText)
     }
+
+    @Test
+    fun extractInsertedText_returnsTextInsertedAtCursor() {
+        val previous = TextFieldValue("Before after", selection = TextRange(7))
+        val proposed = TextFieldValue("Before inserted after", selection = TextRange(16))
+
+        val insertedText = extractInsertedText(previous, proposed)
+
+        assertEquals("inserted ", insertedText)
+    }
+
+    @Test
+    fun extractInsertedText_returnsNullWhenSurroundingTextChanged() {
+        val previous = TextFieldValue("Before after", selection = TextRange(7))
+        val proposed = TextFieldValue("Changed inserted after", selection = TextRange(16))
+
+        val insertedText = extractInsertedText(previous, proposed)
+
+        assertNull(insertedText)
+    }
 }

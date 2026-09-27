@@ -1,6 +1,8 @@
 package com.ai.assistance.operit.api.chat.library
 
 import com.ai.assistance.operit.data.model.ChatMessage
+import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,7 +12,7 @@ class ChatMemoryWindowPlannerTest {
     @Test
     fun `plan keeps each normal user turn with its assistant response`() {
         val windows =
-            ChatMemoryWindowPlanner.plan(
+            plan(
                 messages =
                     listOf(
                         message("user", "first", 1),
@@ -47,7 +49,7 @@ class ChatMemoryWindowPlannerTest {
     @Test
     fun `plan keeps consecutive assistant replies with their user turn at a boundary`() {
         val windows =
-            ChatMemoryWindowPlanner.plan(
+            plan(
                 messages =
                     listOf(
                         message("user", "first", 1),
@@ -90,7 +92,7 @@ class ChatMemoryWindowPlannerTest {
                 )
             }
         val windows =
-            ChatMemoryWindowPlanner.plan(
+            plan(
                 messages =
                     listOf(
                         message("user", "before summary user 1", 1),
@@ -149,7 +151,7 @@ class ChatMemoryWindowPlannerTest {
                 }
             }
 
-        val windows = ChatMemoryWindowPlanner.plan(messages, 8)
+        val windows = plan(messages, 8)
 
         assertEquals(listOf(8, 8, 8), windows.map { it.sourceMessageCount })
         assertEquals(24, windows.sumOf { it.sourceMessageCount })
@@ -168,7 +170,7 @@ class ChatMemoryWindowPlannerTest {
                 }
             }
 
-        val windows = ChatMemoryWindowPlanner.plan(messages, 48)
+        val windows = plan(messages, 48)
 
         assertEquals(84, windows.size)
         assertEquals(4_000, windows.sumOf { it.sourceMessageCount })
@@ -179,7 +181,7 @@ class ChatMemoryWindowPlannerTest {
     @Test
     fun `plan ignores blank messages and assistant-only fragments`() {
         val windows =
-            ChatMemoryWindowPlanner.plan(
+            plan(
                 messages =
                     listOf(
                         message("ai", "orphan reply", 1),
@@ -196,7 +198,7 @@ class ChatMemoryWindowPlannerTest {
     @Test
     fun `plan retains assistant sender used by imported web chats`() {
         val windows =
-            ChatMemoryWindowPlanner.plan(
+            plan(
                 messages =
                     listOf(
                         message("user", "question", 1),
@@ -212,7 +214,7 @@ class ChatMemoryWindowPlannerTest {
     @Test
     fun `plan ignores blank and nonblank summary messages`() {
         val windows =
-            ChatMemoryWindowPlanner.plan(
+            plan(
                 messages =
                     listOf(
                         message("summary", "useful summary", 1),
@@ -239,7 +241,7 @@ class ChatMemoryWindowPlannerTest {
                 )
             }
 
-        val windows = ChatMemoryWindowPlanner.plan(messages, Int.MAX_VALUE)
+        val windows = plan(messages, Int.MAX_VALUE)
 
         assertTrue(windows.all { it.sourceMessageCount <= ChatMemoryWindowPlanner.MAX_WINDOW_MESSAGE_COUNT })
         assertEquals(100, windows.sumOf { it.sourceMessageCount })
@@ -255,7 +257,7 @@ class ChatMemoryWindowPlannerTest {
                 }
             }
 
-        val windows = ChatMemoryWindowPlanner.plan(messages, 8)
+        val windows = plan(messages, 8)
 
         assertEquals(listOf(8, 8, 5), windows.map { it.sourceMessageCount })
         assertTrue(windows.all { it.sourceMessageCount <= 8 })
@@ -284,7 +286,7 @@ class ChatMemoryWindowPlannerTest {
                 message("ai", "boundary assistant", 101),
             )
 
-        val windows = ChatMemoryWindowPlanner.plan(messages, 48)
+        val windows = plan(messages, 48)
 
         assertEquals(listOf(48, 2), windows.map { it.sourceMessageCount })
         assertEquals(
@@ -292,6 +294,86 @@ class ChatMemoryWindowPlannerTest {
             windows.last().messages.map { it.content }
         )
     }
+
+    @Test
+    fun `plan with inclusive range keeps only messages inside the range`() {
+        val shanghai = ZoneId.of("Asia/Shanghai")
+        val range =
+            ChatMemoryRebuildTimeScope.inclusiveDates(
+                LocalDate.of(2026, 3, 2),
+                LocalDate.of(2026, 3, 2),
+                shanghai
+            )
+        val windows =
+            plan(
+                messages =
+                    listOf(
+                        message("user", "before", range.startInclusiveMs - 1),
+                        message("ai", "before reply", range.startInclusiveMs - 1),
+                        message("user", "on day", range.startInclusiveMs),
+                        message("ai", "on day reply", range.endExclusiveMs - 1),
+                        message("user", "after", range.endExclusiveMs),
+                        message("ai", "after reply", range.endExclusiveMs + 1),
+                    ),
+                windowMessageCount = 16,
+                timeScope = range
+            )
+
+        assertEquals(listOf("on day", "on day reply"), windows.single().messages.map { it.content })
+    }
+
+    @Test
+    fun `plan with inclusive range excludes an assistant reply after the exclusive end`() {
+        val shanghai = ZoneId.of("Asia/Shanghai")
+        val range =
+            ChatMemoryRebuildTimeScope.inclusiveDates(
+                LocalDate.of(2026, 3, 2),
+                LocalDate.of(2026, 3, 2),
+                shanghai
+            )
+        val windows =
+            plan(
+                messages =
+                    listOf(
+                        message("user", "on day", range.startInclusiveMs),
+                        message("ai", "late reply", range.endExclusiveMs),
+                    ),
+                windowMessageCount = 16,
+                timeScope = range
+            )
+
+        assertEquals(listOf("on day"), windows.single().messages.map { it.content })
+    }
+
+    @Test
+    fun `plan with inclusive range ignores an assistant reply whose user turn is outside`() {
+        val shanghai = ZoneId.of("Asia/Shanghai")
+        val range =
+            ChatMemoryRebuildTimeScope.inclusiveDates(
+                LocalDate.of(2026, 3, 2),
+                LocalDate.of(2026, 3, 2),
+                shanghai
+            )
+        val windows =
+            plan(
+                messages =
+                    listOf(
+                        message("user", "yesterday", range.startInclusiveMs - 1),
+                        message("ai", "today reply", range.startInclusiveMs),
+                    ),
+                windowMessageCount = 16,
+                timeScope = range
+            )
+
+        assertTrue(windows.isEmpty())
+    }
+
+    private fun plan(
+        messages: List<ChatMessage>,
+        windowMessageCount: Int,
+        timeScope: ChatMemoryRebuildTimeScope = ChatMemoryRebuildTimeScope.EntireChat
+    ): List<ChatMemoryWindowPlanner.Window> =
+        ChatMemoryWindowPlanner.plan(messages, windowMessageCount, timeScope)
 
     private fun message(sender: String, content: String, timestamp: Long): ChatMessage =
         ChatMessage(sender = sender, content = content, timestamp = timestamp)

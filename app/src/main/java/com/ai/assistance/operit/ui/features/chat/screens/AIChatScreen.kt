@@ -1604,19 +1604,28 @@ private fun ChatInputBottomBar(
     }
 
     fun handleUserMessageChange(value: TextFieldValue) {
-        val clipboardText = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()
+        // Gate clipboard access behind a long insertion. Reading primaryClip on every
+        // keystroke makes Android show the "app read clipboard" toast and is unused
+        // unless the insertion is already long enough to convert into an attachment.
+        val insertedText =
+            if (convertLongPastedTextToFile && !currentChatId.isNullOrBlank()) {
+                extractInsertedText(userMessage, value)
+            } else {
+                null
+            }
         val pastedText =
-            if (convertLongPastedTextToFile && clipboardText != null) {
-                extractClipboardPastedText(userMessage, value, clipboardText)
+            if (insertedText != null && insertedText.length > longPastedTextFileThreshold) {
+                val clipboardText = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()
+                if (clipboardText != null) {
+                    extractClipboardPastedText(userMessage, value, clipboardText)
+                } else {
+                    null
+                }
             } else {
                 null
             }
 
-        if (
-            pastedText != null &&
-                pastedText.length > longPastedTextFileThreshold &&
-                !currentChatId.isNullOrBlank()
-        ) {
+        if (pastedText != null) {
             coroutineScope.launch {
                 // Keep the draft unchanged until the attachment has been created, so I/O errors do not lose text.
                 if (!actualViewModel.attachPastedText(pastedText)) {

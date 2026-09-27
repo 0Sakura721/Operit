@@ -93,6 +93,11 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                         }
                 }
         }
+
+        /** 只读访问已存在的实例；性能采样等场景不允许为读取数据而触发包管理器初始化。 */
+        internal fun peekInstance(): PackageManager? {
+            return INSTANCE
+        }
     }
 
     // Map of package name to package description (all available packages in market)
@@ -1435,6 +1440,64 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         resolveContext: Context? = null
     ): ToolPkgContainerDetails? {
         return toolPkgFacade.getToolPkgContainerDetails(packageName, resolveContext)
+    }
+
+    internal fun getToolPkgRuntimeMonitorSnapshot(
+        packageName: String
+    ): ToolPkgRuntimeMonitor.Snapshot {
+        ensureInitialized()
+        val normalizedPackageName = normalizePackageName(packageName)
+        val memoryUsages = toolPkgManager.getToolPkgRuntimeMemoryUsage(normalizedPackageName)
+        if (memoryUsages.isNotEmpty()) {
+            ToolPkgRuntimeMonitor.recordCurrentMemory(
+                packageName = normalizedPackageName,
+                memory = ToolPkgRuntimeMonitor.MemorySample(
+                    timestampMs = System.currentTimeMillis(),
+                    jsHeapUsedKb = memoryUsages.sumOf { usage -> usage.memoryUsedBytes } / 1024L,
+                    jsMallocUsedKb = memoryUsages.sumOf { usage -> usage.mallocSizeBytes } / 1024L,
+                    jsPeakMallocUsedKb =
+                        memoryUsages.sumOf { usage -> usage.peakMallocSizeBytes } / 1024L
+                )
+            )
+        }
+        return ToolPkgRuntimeMonitor.snapshot(normalizedPackageName)
+    }
+
+    internal fun clearToolPkgRuntimeMonitorLogs(packageName: String) {
+        ensureInitialized()
+        ToolPkgRuntimeMonitor.clearLogs(normalizePackageName(packageName))
+    }
+
+    data class ToolPkgRuntimeEngineOverview(
+        val containerPackageName: String,
+        val displayName: String,
+        val engineCount: Int,
+        val engineThreadIds: List<Long>,
+        val quickJsMemoryUsedBytes: Long,
+        val quickJsMallocBytes: Long
+    )
+
+    /**
+     * 当前有活跃执行引擎的插件运行概览，供性能分析界面按插件归属 CPU 与 QuickJS 内存。
+     * 不调用 ensureInitialized：采样路径只读取已存在的运行状态。
+     */
+    internal fun getToolPkgRuntimeEngineOverviews(): List<ToolPkgRuntimeEngineOverview> {
+        return toolPkgManager.getToolPkgEngineRuntimeInfo().map { info ->
+            val displayName =
+                toolPkgContainers[info.containerPackageName]?.displayName
+                    ?.resolve(context)
+                    ?.trim()
+                    ?.ifBlank { info.containerPackageName }
+                    ?: info.containerPackageName
+            ToolPkgRuntimeEngineOverview(
+                containerPackageName = info.containerPackageName,
+                displayName = displayName,
+                engineCount = info.engineCount,
+                engineThreadIds = info.engineThreadIds,
+                quickJsMemoryUsedBytes = info.quickJsMemoryUsedBytes,
+                quickJsMallocBytes = info.quickJsMallocBytes
+            )
+        }
     }
 
     /**

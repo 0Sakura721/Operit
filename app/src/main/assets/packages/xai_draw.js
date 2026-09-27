@@ -19,6 +19,14 @@
       "required": true
     },
     {
+      "name": "XAI_API_BASE_URL",
+      "description": {
+        "zh": "xAI API 基地址（可选；默认 https://api.x.ai/v1）",
+        "en": "xAI API base URL (optional; default https://api.x.ai/v1)"
+      },
+      "required": false
+    },
+    {
       "name": "XAI_IMAGE_MODEL",
       "description": {
         "zh": "默认图片模型（可选；未传 model 时使用，默认 grok-2-image-1212）",
@@ -91,13 +99,29 @@ const xaiDraw = (function () {
     const VIDEO_RESOLUTIONS = ["480p", "720p"];
     const MIN_VIDEO_DURATION = 1;
     const MAX_VIDEO_DURATION = 15;
-    const API_BASE_URL = "https://api.x.ai/v1";
-    const IMAGE_API_ENDPOINT = `${API_BASE_URL}/images/generations`;
-    const VIDEO_GENERATION_ENDPOINT = `${API_BASE_URL}/videos/generations`;
+    const DEFAULT_BASE_URL = "https://api.x.ai/v1";
     const DRAW_ROOT_DIR = getPluginConfigDir("draw");
     const STORAGE_DIR = `${DRAW_ROOT_DIR}/xai_draw`;
     const DRAWS_DIR = `${STORAGE_DIR}/draws`;
     const VIDEOS_DIR = `${STORAGE_DIR}/videos`;
+
+    // ===== 新增：动态读取 BaseURL =====
+    function getBaseUrl() {
+        const raw = String(getEnv("XAI_API_BASE_URL") || "").trim();
+        const base = raw || DEFAULT_BASE_URL;
+        return base.replace(/\/+$/, "");
+    }
+    function getImageApiEndpoint() {
+        return `${getBaseUrl()}/images/generations`;
+    }
+    function getVideoGenerationEndpoint() {
+        return `${getBaseUrl()}/videos/generations`;
+    }
+    function getVideoQueryEndpoint(requestId) {
+        return `${getBaseUrl()}/videos/${encodeURIComponent(requestId)}`;
+    }
+    // ==================================
+
     function getErrorMessage(error) {
         if (error instanceof Error)
             return error.message;
@@ -314,7 +338,7 @@ const xaiDraw = (function () {
         }
         const request = client
             .newRequest()
-            .url(IMAGE_API_ENDPOINT)
+            .url(getImageApiEndpoint())
             .method("POST")
             .headers({
             "accept": "application/json",
@@ -362,7 +386,7 @@ const xaiDraw = (function () {
         }
         const request = client
             .newRequest()
-            .url(VIDEO_GENERATION_ENDPOINT)
+            .url(getVideoGenerationEndpoint())
             .method("POST")
             .headers({
             "accept": "application/json",
@@ -391,7 +415,7 @@ const xaiDraw = (function () {
     }
     async function queryVideoTaskStatus(requestId) {
         const apiKey = getApiKey();
-        const endpoint = `${API_BASE_URL}/videos/${encodeURIComponent(requestId)}`;
+        const endpoint = getVideoQueryEndpoint(requestId);
         const request = client
             .newRequest()
             .url(endpoint)

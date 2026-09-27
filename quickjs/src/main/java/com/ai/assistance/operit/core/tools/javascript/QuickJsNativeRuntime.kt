@@ -30,8 +30,20 @@ internal object QuickJsNativeBridge {
     external fun nativeExecutePendingJobs(handle: Long, maxJobs: Int): Int
 
     @JvmStatic
+    external fun nativeGetMemoryUsage(handle: Long): String
+
+    @JvmStatic
+    external fun nativeResetMemoryPeak(handle: Long)
+
+    @JvmStatic
     external fun nativeInterrupt(handle: Long)
 }
+
+data class QuickJsMemoryUsage(
+    val mallocSizeBytes: Long,
+    val memoryUsedBytes: Long,
+    val peakMallocSizeBytes: Long
+)
 
 class QuickJsNativeRuntime private constructor(
     private val handle: Long,
@@ -95,6 +107,19 @@ class QuickJsNativeRuntime private constructor(
     fun executePendingJobs(maxJobs: Int = 128): Int {
         require(maxJobs > 0) { "maxJobs must be > 0" }
         return QuickJsNativeBridge.nativeExecutePendingJobs(requireHandle(), maxJobs)
+    }
+
+    fun getMemoryUsage(): QuickJsMemoryUsage {
+        val payload = JSONObject(QuickJsNativeBridge.nativeGetMemoryUsage(requireHandle()))
+        return QuickJsMemoryUsage(
+            mallocSizeBytes = payload.optLong("mallocSizeBytes", 0L),
+            memoryUsedBytes = payload.optLong("memoryUsedBytes", 0L),
+            peakMallocSizeBytes = payload.optLong("peakMallocSizeBytes", 0L)
+        )
+    }
+
+    fun resetMemoryPeak() {
+        QuickJsNativeBridge.nativeResetMemoryPeak(requireHandle())
     }
 
     fun dispatchTimer(timerId: Int): EvalResult {

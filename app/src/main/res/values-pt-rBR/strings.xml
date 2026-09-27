@@ -2934,7 +2934,7 @@ Agora é possível usar o modo AutoGLM na interface de diálogo.</string>
     <string name="chat_history_selected_actions">Ações para conversas selecionadas (%1$d)</string>
     <string name="chat_history_selected_actions_title">Ações das conversas selecionadas</string>
     <string name="chat_memory_rebuild_title">Construir biblioteca de memória por janelas</string>
-    <string name="chat_memory_rebuild_subtitle">Extrai memórias de janelas limitadas de mensagens originais do usuário e assistente</string>
+    <string name="chat_memory_rebuild_subtitle">Escolha um intervalo de tempo e extraia memórias de janelas limitadas de mensagens originais do usuário e assistente</string>
     <string name="chat_memory_rebuild_window_size">Mensagens por janela</string>
     <string name="chat_memory_rebuild_window_size_value">%1$d mensagens</string>
     <string name="chat_memory_rebuild_start">Construir memória para %1$d conversas selecionadas</string>
@@ -2946,7 +2946,16 @@ Agora é possível usar o modo AutoGLM na interface de diálogo.</string>
     <string name="chat_memory_rebuild_failed">Falha na construção: %1$s</string>
     <string name="chat_memory_rebuild_confirm_title">Confirmar construção de memória</string>
     <string name="chat_memory_rebuild_confirm_message">As %1$d conversas selecionadas serão enviadas ao modelo de memória em sequência, com %2$d mensagens por janela. O processo faz solicitações ao modelo e grava no espaço de memória correspondente.</string>
+    <string name="chat_memory_rebuild_confirm_message_range">As mensagens de %2$s a %3$s nas %1$d conversas selecionadas serão enviadas ao modelo de memória em sequência, com %4$d mensagens por janela. O processo faz solicitações ao modelo e grava no espaço de memória correspondente.</string>
     <string name="chat_memory_rebuild_confirm_action">Iniciar construção</string>
+    <string name="chat_memory_rebuild_time_scope">Intervalo de tempo das mensagens</string>
+    <string name="chat_memory_rebuild_time_scope_all">Todas as mensagens</string>
+    <string name="chat_memory_rebuild_time_scope_range">Intervalo personalizado</string>
+    <string name="chat_memory_rebuild_time_scope_pick">Escolha as datas inicial e final</string>
+    <string name="chat_memory_rebuild_time_scope_value">%1$s – %2$s</string>
+    <string name="chat_memory_rebuild_date_range_title">Escolha um intervalo de memória</string>
+    <string name="chat_memory_rebuild_date_range_confirm">OK</string>
+    <string name="chat_memory_rebuild_empty_range">O intervalo selecionado não contém mensagens do usuário para construir memória</string>
     <string name="long_press_to_manage">Gerenciamento de imprensa longa</string>
     <string name="edit_title_desc">Editar título</string>
     <string name="reorder">Reordenar</string>
@@ -3321,7 +3330,7 @@ Agora é possível usar o modo AutoGLM na interface de diálogo.</string>
     <string name="actual_request_url">Endereço de solicitação real: %s</string>
     <string name="endpoint_completion_hint">Dica: Se você inserir uma URL base, o sistema completará automaticamente o caminho. Para desativá-lo, adicione um sinal # no final do URL.</string>
     <string name="api_key">Chave de API</string>
-    <string name="api_key_placeholder_default">Use a chave padrão e insira-a diretamente</string>
+    <string name="api_key_placeholder_default">Nenhuma chave definida. Digite aqui ou use o pool de chaves de API</string>
     <string name="api_key_placeholder_custom">Insira a chave API</string>
     <string name="model_name">Nome do modelo</string>
     <string name="model_name_placeholder">Por exemplo: gpt-4, claude-3-opus-20240229...</string>

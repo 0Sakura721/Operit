@@ -15,10 +15,17 @@ internal object ChatMemoryWindowPlanner {
 
     fun plan(
         messages: List<ChatMessage>,
-        windowMessageCount: Int
+        windowMessageCount: Int,
+        timeScope: ChatMemoryRebuildTimeScope
     ): List<Window> {
         val boundedWindowSize =
             windowMessageCount.coerceIn(MIN_WINDOW_MESSAGE_COUNT, MAX_WINDOW_MESSAGE_COUNT)
+        val scopedMessages =
+            when (timeScope) {
+                ChatMemoryRebuildTimeScope.EntireChat -> messages
+                is ChatMemoryRebuildTimeScope.InclusiveLocalRange ->
+                    messages.filter { timeScope.contains(it.timestamp) }
+            }
         val windows = mutableListOf<Window>()
         val pendingSourceMessages = mutableListOf<ChatMessage>()
         val pendingContextMessages = mutableListOf<ChatMessage>()
@@ -38,7 +45,7 @@ internal object ChatMemoryWindowPlanner {
             contextUser?.let(pendingContextMessages::add)
         }
 
-        messages.sortedBy { it.timestamp }.forEach { message ->
+        scopedMessages.sortedBy { it.timestamp }.forEach { message ->
             when (message.sender) {
                 "user" -> {
                     if (message.content.isBlank()) return@forEach

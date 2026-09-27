@@ -3059,7 +3059,7 @@
     <string name="chat_history_selected_actions">선택한 채팅 작업 (%1$d)</string>
     <string name="chat_history_selected_actions_title">선택한 채팅 작업</string>
     <string name="chat_memory_rebuild_title">창 단위 기억 라이브러리 구축</string>
-    <string name="chat_memory_rebuild_subtitle">원본 사용자 및 어시스턴트 메시지의 제한된 창에서 기억을 추출합니다</string>
+    <string name="chat_memory_rebuild_subtitle">기간을 지정하고 원본 사용자 및 어시스턴트 메시지의 제한된 창에서 기억을 추출합니다</string>
     <string name="chat_memory_rebuild_window_size">창당 메시지 수</string>
     <string name="chat_memory_rebuild_window_size_value">메시지 %1$d개</string>
     <string name="chat_memory_rebuild_start">선택한 %1$d개 채팅의 기억 구축</string>
@@ -3071,7 +3071,16 @@
     <string name="chat_memory_rebuild_failed">구축 실패: %1$s</string>
     <string name="chat_memory_rebuild_confirm_title">기억 구축 확인</string>
     <string name="chat_memory_rebuild_confirm_message">선택한 %1$d개 채팅을 창당 %2$d개 메시지로 나누어 순서대로 기억 모델에 보냅니다. 이 과정은 모델 요청을 수행하고 해당 기억 공간에 기록합니다.</string>
+    <string name="chat_memory_rebuild_confirm_message_range">선택한 %1$d개 채팅에서 %2$s부터 %3$s까지의 메시지를 창당 %4$d개로 나누어 순서대로 기억 모델에 보냅니다. 이 과정은 모델 요청을 수행하고 해당 기억 공간에 기록합니다.</string>
     <string name="chat_memory_rebuild_confirm_action">구축 시작</string>
+    <string name="chat_memory_rebuild_time_scope">메시지 기간</string>
+    <string name="chat_memory_rebuild_time_scope_all">모든 메시지</string>
+    <string name="chat_memory_rebuild_time_scope_range">기간 지정</string>
+    <string name="chat_memory_rebuild_time_scope_pick">시작일과 종료일 선택</string>
+    <string name="chat_memory_rebuild_time_scope_value">%1$s – %2$s</string>
+    <string name="chat_memory_rebuild_date_range_title">기억 기간 선택</string>
+    <string name="chat_memory_rebuild_date_range_confirm">확인</string>
+    <string name="chat_memory_rebuild_empty_range">선택한 기간에 기억을 구축할 사용자 메시지가 없습니다</string>
     <string name="long_press_to_manage">관리하려면 길게 누르세요.</string>
     <string name="edit_title_desc">제목 수정</string>
     <string name="reorder">순서 변경</string>
@@ -3460,7 +3469,7 @@
     <string name="actual_request_url">실제 요청 URL: %s</string>
     <string name="endpoint_completion_hint">힌트: 기본 URL을 입력하면 시스템이 자동으로 경로를 완성합니다. 비활성화하려면 URL 끝에 #을 추가하세요.</string>
     <string name="api_key">API 키</string>
-    <string name="api_key_placeholder_default">기본 키 사용 중입니다. 직접 입력할 수 있습니다.</string>
+    <string name="api_key_placeholder_default">키가 설정되지 않았습니다. 여기에 입력하거나 API 키 풀을 사용하세요</string>
     <string name="api_key_placeholder_custom">API 키 입력</string>
     <string name="model_name">모델명</string>
     <string name="model_name_placeholder">예: gpt-4, claude-3-opus-20240229...</string>

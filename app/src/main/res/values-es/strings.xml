@@ -1196,7 +1196,7 @@
     <string name="api_endpoint_placeholder">ej.: https://api.openai.com/v1/chat/completions</string>
     <string name="actual_request_url">URL de solicitud real: %s</string>
     <string name="endpoint_completion_hint">Sugerencia: Si ingresas una URL base, el sistema completará automáticamente la ruta. Para desactivar, agrega # al final de la URL.</string>
-    <string name="api_key_placeholder_default">Usando clave predeterminada, puedes ingresar directamente</string>
+    <string name="api_key_placeholder_default">No hay clave establecida. Escríbela aquí o usa el grupo de claves API</string>
     <string name="api_key_placeholder_custom">Ingresa clave API</string>
     <string name="model_name_placeholder">ej.: gpt-4, claude-3-opus-20240229...</string>
     <string name="get_models_list">Obtener Lista de Modelos</string>
@@ -3607,7 +3607,7 @@ Ahora puede usar el modo AutoGLM en la interfaz de conversación.</string>
     <string name="chat_history_selected_actions">Acciones para chats seleccionados (%1$d)</string>
     <string name="chat_history_selected_actions_title">Acciones de chats seleccionados</string>
     <string name="chat_memory_rebuild_title">Construir biblioteca de memoria por ventanas</string>
-    <string name="chat_memory_rebuild_subtitle">Extrae recuerdos de ventanas limitadas de mensajes originales de usuario y asistente</string>
+    <string name="chat_memory_rebuild_subtitle">Elige un intervalo de tiempo y extrae recuerdos de ventanas limitadas de mensajes originales de usuario y asistente</string>
     <string name="chat_memory_rebuild_window_size">Mensajes por ventana</string>
     <string name="chat_memory_rebuild_window_size_value">%1$d mensajes</string>
     <string name="chat_memory_rebuild_start">Construir memoria para %1$d chats seleccionados</string>
@@ -3619,7 +3619,16 @@ Ahora puede usar el modo AutoGLM en la interfaz de conversación.</string>
     <string name="chat_memory_rebuild_failed">Error de construcción: %1$s</string>
     <string name="chat_memory_rebuild_confirm_title">Confirmar construcción de memoria</string>
     <string name="chat_memory_rebuild_confirm_message">Los %1$d chats seleccionados se enviarán al modelo de memoria en orden, con %2$d mensajes por ventana. El proceso realiza solicitudes al modelo y escribe en el espacio de memoria correspondiente.</string>
+    <string name="chat_memory_rebuild_confirm_message_range">Los mensajes del %2$s al %3$s en los %1$d chats seleccionados se enviarán al modelo de memoria en orden, con %4$d mensajes por ventana. El proceso realiza solicitudes al modelo y escribe en el espacio de memoria correspondiente.</string>
     <string name="chat_memory_rebuild_confirm_action">Iniciar construcción</string>
+    <string name="chat_memory_rebuild_time_scope">Intervalo de tiempo de los mensajes</string>
+    <string name="chat_memory_rebuild_time_scope_all">Todos los mensajes</string>
+    <string name="chat_memory_rebuild_time_scope_range">Intervalo personalizado</string>
+    <string name="chat_memory_rebuild_time_scope_pick">Elige las fechas de inicio y fin</string>
+    <string name="chat_memory_rebuild_time_scope_value">%1$s – %2$s</string>
+    <string name="chat_memory_rebuild_date_range_title">Elige un intervalo de memoria</string>
+    <string name="chat_memory_rebuild_date_range_confirm">Aceptar</string>
+    <string name="chat_memory_rebuild_empty_range">El intervalo seleccionado no contiene mensajes de usuario para construir memoria</string>
     <string name="long_press_to_manage">Mantener presionado para gestionar</string>
     <string name="edit_title_desc">Editar título</string>
     <string name="reorder">Reordenar</string>

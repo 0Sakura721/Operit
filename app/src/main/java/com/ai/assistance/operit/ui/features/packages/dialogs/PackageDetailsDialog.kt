@@ -27,11 +27,18 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.PackageTool
 import com.ai.assistance.operit.core.tools.ToolPackage
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
+import com.ai.assistance.operit.core.tools.packTool.ToolPkgRuntimeMonitor
 import com.ai.assistance.operit.ui.common.icons.rememberLogoPainter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PackageDetailsDialog(
         packageName: String,
@@ -45,6 +52,7 @@ fun PackageDetailsDialog(
 ) {
     val context = LocalContext.current
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showRuntimeMonitorDialog by remember(packageName) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val resolvedPackage by produceState<ToolPackage?>(initialValue = toolPackage, packageName, toolPackage) {
@@ -182,6 +190,15 @@ fun PackageDetailsDialog(
                         Text(stringResource(R.string.pkg_cancel))
                     }
                 }
+        )
+    }
+
+    if (showRuntimeMonitorDialog) {
+        ToolPkgRuntimeMonitorDialog(
+            packageName = packageName,
+            packageDisplayName = packageDisplayName,
+            packageManager = packageManager,
+            onDismiss = { showRuntimeMonitorDialog = false }
         )
     }
 
@@ -651,10 +668,23 @@ fun PackageDetailsDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 操作按钮
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = { showRuntimeMonitorDialog = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.pkg_runtime_monitor_action))
+                    }
+
                     if (metaPackage != null && !metaPackage.isBuiltIn) {
                         OutlinedButton(
                             onClick = { showDeleteConfirmDialog = true },
@@ -795,6 +825,497 @@ private fun EmptyToolsCard(message: String) {
             )
         }
     }
+}
+
+@Composable
+private fun ToolPkgRuntimeMonitorDialog(
+    packageName: String,
+    packageDisplayName: String,
+    packageManager: PackageManager,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val timeFormatter = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()) }
+    var snapshot by remember(packageName) {
+        mutableStateOf<ToolPkgRuntimeMonitor.Snapshot?>(null)
+    }
+
+    LaunchedEffect(packageName) {
+        while (true) {
+            snapshot =
+                withContext(Dispatchers.IO) {
+                    packageManager.getToolPkgRuntimeMonitorSnapshot(packageName)
+                }
+            delay(1_000L)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Speed,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.pkg_runtime_monitor_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = packageDisplayName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val currentSnapshot = snapshot
+                if (currentSnapshot == null) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item(key = "note") {
+                            Text(
+                                text = stringResource(R.string.pkg_runtime_monitor_note),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        item(key = "runtime") {
+                            RuntimeMonitorSection(
+                                title = stringResource(R.string.pkg_runtime_monitor_summary_title),
+                                icon = Icons.Default.Assessment
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_active_calls),
+                                        value = currentSnapshot.activeCalls.toString(),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_started_calls),
+                                        value = currentSnapshot.startedCalls.toString(),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_completed_calls),
+                                        value = currentSnapshot.completedCalls.toString(),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_failed_calls),
+                                        value = currentSnapshot.failedCalls.toString(),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_avg_duration),
+                                        value = formatRuntimeDuration(currentSnapshot.averageDurationMs),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_max_duration),
+                                        value = formatRuntimeDuration(currentSnapshot.maxDurationMs),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_last_duration),
+                                    value = formatRuntimeDuration(currentSnapshot.lastDurationMs)
+                                )
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_last_function),
+                                    value = currentSnapshot.lastFunctionName ?: "-"
+                                )
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_last_event),
+                                    value = currentSnapshot.lastEvent ?: "-"
+                                )
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_last_finish),
+                                    value = formatRuntimeTimestamp(
+                                        currentSnapshot.lastFinishedAtMs,
+                                        timeFormatter
+                                    )
+                                )
+                            }
+                        }
+
+                        item(key = "memory") {
+                            RuntimeMonitorSection(
+                                title = stringResource(R.string.pkg_runtime_monitor_memory_title),
+                                icon = Icons.Default.Memory
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_heap_used),
+                                        value = formatRuntimeMemory(
+                                            currentSnapshot.currentMemory?.jsHeapUsedKb
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_pss_total),
+                                        value = formatRuntimeMemory(
+                                            currentSnapshot.currentMemory?.jsMallocUsedKb
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_native_heap),
+                                        value = formatRuntimeMemory(
+                                            currentSnapshot.currentMemory?.jsPeakMallocUsedKb
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    RuntimeMetricTile(
+                                        label = stringResource(R.string.pkg_runtime_monitor_heap_limit),
+                                        value = formatRuntimeMemoryDelta(
+                                            currentSnapshot.peakMemoryPeakDeltaKb
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_active_heap_delta),
+                                    value = formatRuntimeMemoryDelta(currentSnapshot.currentMemoryDeltaKb)
+                                )
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_active_pss_delta),
+                                    value = formatRuntimeMemoryDelta(
+                                        currentSnapshot.currentMemoryPeakDeltaKb
+                                    )
+                                )
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_last_heap_delta),
+                                    value = formatRuntimeMemoryDelta(currentSnapshot.lastMemoryDeltaKb)
+                                )
+                                RuntimeInfoLine(
+                                    label = stringResource(R.string.pkg_runtime_monitor_last_pss_delta),
+                                    value = formatRuntimeMemoryDelta(
+                                        currentSnapshot.lastMemoryPeakDeltaKb
+                                    )
+                                )
+                            }
+                        }
+
+                        item(key = "logs") {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.pkg_runtime_monitor_logs_title),
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    packageManager.clearToolPkgRuntimeMonitorLogs(packageName)
+                                                }
+                                                snapshot =
+                                                    withContext(Dispatchers.IO) {
+                                                        packageManager.getToolPkgRuntimeMonitorSnapshot(packageName)
+                                                    }
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(stringResource(R.string.pkg_runtime_monitor_clear_logs))
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                if (currentSnapshot.logs.isEmpty()) {
+                                    EmptyToolsCard(
+                                        message = stringResource(R.string.pkg_runtime_monitor_logs_empty)
+                                    )
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxWidth().height(240.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(
+                                            items = currentSnapshot.logs.asReversed(),
+                                            key = { entry -> entry.sequence }
+                                        ) { entry ->
+                                            RuntimeLogEntryCard(entry, timeFormatter)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    FilledTonalButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.pkg_close))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuntimeMonitorSection(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            )
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun RuntimeMetricTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.heightIn(min = 58.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun RuntimeInfoLine(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(118.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun RuntimeLogEntryCard(
+    entry: ToolPkgRuntimeMonitor.LogEntry,
+    timeFormatter: SimpleDateFormat
+) {
+    val levelColor =
+        when (entry.level.lowercase(Locale.getDefault())) {
+            "error" -> MaterialTheme.colorScheme.errorContainer
+            "warn" -> MaterialTheme.colorScheme.tertiaryContainer
+            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        }
+    val levelTextColor =
+        when (entry.level.lowercase(Locale.getDefault())) {
+            "error" -> MaterialTheme.colorScheme.onErrorContainer
+            "warn" -> MaterialTheme.colorScheme.onTertiaryContainer
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = levelColor,
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+            Text(
+                text =
+                    buildString {
+                        append(formatRuntimeTimestamp(entry.timestampMs, timeFormatter))
+                        append(" [")
+                        append(entry.level.uppercase(Locale.getDefault()))
+                        append("]")
+                        if (!entry.pluginId.isNullOrBlank()) {
+                            append(" ")
+                            append(entry.pluginId)
+                        }
+                    },
+                style = MaterialTheme.typography.labelSmall,
+                color = levelTextColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text =
+                    buildString {
+                        append(entry.functionName)
+                        if (!entry.event.isNullOrBlank()) {
+                            append(" / ")
+                            append(entry.event)
+                        }
+                    },
+                style = MaterialTheme.typography.labelSmall,
+                color = levelTextColor.copy(alpha = 0.82f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = entry.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = levelTextColor,
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun formatRuntimeMemory(kb: Long?): String {
+    if (kb == null) {
+        return "-"
+    }
+    val absoluteKb = abs(kb)
+    val sign = if (kb < 0L) "-" else ""
+    return if (absoluteKb >= 1024L) {
+        String.format(Locale.getDefault(), "%s%.1f MB", sign, absoluteKb / 1024.0)
+    } else {
+        "$sign$absoluteKb KB"
+    }
+}
+
+private fun formatRuntimeMemoryDelta(kb: Long?): String {
+    if (kb == null) {
+        return "-"
+    }
+    val prefix = if (kb > 0L) "+" else ""
+    return prefix + formatRuntimeMemory(kb)
+}
+
+private fun formatRuntimeDuration(durationMs: Long?): String {
+    if (durationMs == null) {
+        return "-"
+    }
+    return if (durationMs >= 1_000L) {
+        String.format(Locale.getDefault(), "%.2f s", durationMs / 1_000.0)
+    } else {
+        "$durationMs ms"
+    }
+}
+
+private fun formatRuntimeTimestamp(timestampMs: Long?, formatter: SimpleDateFormat): String {
+    if (timestampMs == null) {
+        return "-"
+    }
+    return formatter.format(Date(timestampMs))
 }
 
 @Composable

@@ -2,13 +2,10 @@ package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.ui.text.input.TextFieldValue
 
-internal fun extractClipboardPastedText(
+internal fun extractInsertedText(
     previous: TextFieldValue,
     proposed: TextFieldValue,
-    clipboardText: String,
 ): String? {
-    if (clipboardText.isEmpty()) return null
-
     val previousText = previous.text
     val selectionStart = previous.selection.start.coerceIn(0, previousText.length)
     val selectionEnd = previous.selection.end.coerceIn(0, previousText.length)
@@ -22,8 +19,18 @@ internal fun extractClipboardPastedText(
     val pastedEnd = proposed.text.length - suffix.length
     if (pastedEnd < prefix.length) return null
 
-    val pastedText = proposed.text.substring(prefix.length, pastedEnd)
-    return pastedText.takeIf {
+    return proposed.text.substring(prefix.length, pastedEnd)
+}
+
+internal fun extractClipboardPastedText(
+    previous: TextFieldValue,
+    proposed: TextFieldValue,
+    clipboardText: String,
+): String? {
+    if (clipboardText.isEmpty()) return null
+
+    val insertedText = extractInsertedText(previous, proposed) ?: return null
+    return insertedText.takeIf {
         normalizeLineEndings(it) == normalizeLineEndings(clipboardText)
     }
 }

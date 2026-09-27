@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Process
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.backup.OperitBackupDirs
@@ -27,12 +28,18 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.SerializationException
 
 /** User-triggered physical validation and preservation-first repair for Preferences DataStore files. */
 object PreferencesHealthManager {
     private const val TAG = "PreferencesHealth"
     private const val PREFERENCES_SUFFIX = ".preferences_pb"
     private val operationMutex = Mutex()
+    private val domainJson = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     enum class Status {
         HEALTHY,
@@ -62,6 +69,11 @@ object PreferencesHealthManager {
             get() = status == Status.NEEDS_REPAIR && repairableFileNames.isNotEmpty()
     }
 
+    data class DomainIssue(
+        val storeName: String,
+        val detail: String
+    )
+
     data class RepairResult(
         val sourceArchive: File,
         val resetFileNames: List<String>,
@@ -81,6 +93,8 @@ object PreferencesHealthManager {
 
     private sealed interface CopyValidation {
         data object Readable : CopyValidation
+
+        data class DomainIssues(val issues: List<DomainIssue>) : CopyValidation
 
         data class Corrupt(val reason: String) : CopyValidation
 
@@ -111,7 +125,11 @@ object PreferencesHealthManager {
                 try {
                     sources.forEach { source ->
                         requireMainProcessStopped(displayContext)
-                        check(validateCopy(appContext, source) is CopyValidation.Corrupt) {
+                        val validation = validateCopy(appContext, source)
+                        check(
+                            validation is CopyValidation.Corrupt ||
+                                validation is CopyValidation.DomainIssues
+                        ) {
                             displayContext.getString(
                                 R.string.data_recovery_configuration_changed_before_repair,
                                 source.name
@@ -206,6 +224,19 @@ object PreferencesHealthManager {
 
             when (val validation = validateCopy(appContext, source)) {
                 CopyValidation.Readable -> readableFileCount++
+                is CopyValidation.DomainIssues -> {
+                    hasRepairableIssue = true
+                    repairableFileNames += source.name
+                    checks +=
+                        CheckItem(
+                            title = source.name.removeSuffix(PREFERENCES_SUFFIX),
+                            detail =
+                                context.getString(R.string.data_recovery_configuration_file_domain_issue,
+                                validation.issues.joinToString(separator = ", ") { it.detail }),
+                            status = ItemStatus.WARNING
+                        )
+                    AppLogger.w(TAG, "Preferences domain issues found: ${source.name}; ${validation.issues.joinToString(separator = ", ") { it.detail }}")
+                }
                 is CopyValidation.Corrupt -> {
                     hasRepairableIssue = true
                     repairableFileNames += source.name
@@ -304,8 +335,9 @@ object PreferencesHealthManager {
                     scope = CoroutineScope(job + Dispatchers.IO),
                     produceFile = { copy }
                 )
-            store.data.first()
-            CopyValidation.Readable
+            val preferences = store.data.first()
+            val issues = inspectDomainIssues(source, preferences)
+            return if (issues.isEmpty()) CopyValidation.Readable else CopyValidation.DomainIssues(issues)
         } catch (e: CorruptionException) {
             CopyValidation.Corrupt(e.message ?: e.javaClass.simpleName)
         } catch (e: Exception) {
@@ -317,6 +349,31 @@ object PreferencesHealthManager {
                 AppLogger.w(TAG, "Failed to delete Preferences validation directory")
             }
         }
+    }
+
+    private fun inspectDomainIssues(
+        source: File,
+        preferences: Preferences
+    ): List<DomainIssue> {
+        val storeName = source.name.removeSuffix(PREFERENCES_SUFFIX)
+        return preferences.asMap().entries.mapNotNull { (key, value) ->
+            val text = (value as? String)?.trim() ?: return@mapNotNull null
+            if (!shouldInspectStructuredJsonValue(text)) return@mapNotNull null
+            try {
+                domainJson.parseToJsonElement(text)
+                null
+            } catch (error: SerializationException) {
+                DomainIssue(
+                    storeName = storeName,
+                    detail = "Malformed JSON in ${key.name}: ${error.message ?: error.javaClass.simpleName}"
+                )
+            }
+        }
+    }
+
+    private fun shouldInspectStructuredJsonValue(value: String): Boolean {
+        if (value.isEmpty()) return false
+        return value.first() == '{' || value.first() == '['
     }
 
     private fun resolveRepairSources(context: Context, fileNames: List<String>): List<File> {

@@ -3,10 +3,23 @@ package com.ai.assistance.operit.core.tools.packTool
 import android.content.Context
 import com.ai.assistance.operit.core.tools.ToolPackage
 import com.ai.assistance.operit.core.tools.javascript.JsEngine
+import com.ai.assistance.operit.core.tools.javascript.QuickJsMemoryUsage
 import com.ai.assistance.operit.util.AppLogger
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * 一个 ToolPkg 容器当前活跃执行引擎的运行信息。
+ * 性能分析界面用它把 QuickJS 运行线程的 CPU 和 JS 堆内存归属到具体插件。
+ */
+internal data class ToolPkgEngineRuntimeInfo(
+    val containerPackageName: String,
+    val engineCount: Int,
+    val engineThreadIds: List<Long>,
+    val quickJsMemoryUsedBytes: Long,
+    val quickJsMallocBytes: Long
+)
 
 internal class ToolPkgManager(
     private val context: Context,
@@ -179,6 +192,40 @@ internal class ToolPkgManager(
             return null
         }
         return executionEngines[normalizedKey]?.engine
+    }
+
+    fun getToolPkgRuntimeMemoryUsage(containerPackageName: String): List<QuickJsMemoryUsage> {
+        val normalizedContainer = containerPackageName.trim()
+        if (normalizedContainer.isBlank()) {
+            return emptyList()
+        }
+        val engines =
+            synchronized(executionEngineLock) {
+                executionEngines.values
+                    .filter { entry -> entry.containerPackageName == normalizedContainer }
+                    .map { entry -> entry.engine }
+            }
+        return engines.mapNotNull { engine -> engine.getQuickJsMemoryUsage() }
+    }
+
+    fun getToolPkgEngineRuntimeInfo(): List<ToolPkgEngineRuntimeInfo> {
+        val enginesByContainer =
+            synchronized(executionEngineLock) {
+                executionEngines.values.groupBy(
+                    keySelector = { entry -> entry.containerPackageName },
+                    valueTransform = { entry -> entry.engine }
+                )
+            }
+        return enginesByContainer.map { (containerPackageName, engines) ->
+            val memoryUsages = engines.mapNotNull { engine -> engine.getQuickJsMemoryUsage() }
+            ToolPkgEngineRuntimeInfo(
+                containerPackageName = containerPackageName,
+                engineCount = engines.size,
+                engineThreadIds = engines.mapNotNull { engine -> engine.getQuickJsRuntimeTid() },
+                quickJsMemoryUsedBytes = memoryUsages.sumOf { usage -> usage.memoryUsedBytes },
+                quickJsMallocBytes = memoryUsages.sumOf { usage -> usage.mallocSizeBytes }
+            )
+        }.sortedBy { info -> info.containerPackageName }
     }
 
     fun releaseToolPkgExecutionEngine(

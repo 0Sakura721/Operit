@@ -524,6 +524,8 @@ class MessageCoordinationDelegate(
         preferActiveRoleCard: Boolean = false,
         chatIdOverride: String? = null,
         messageTextOverride: String? = null,
+        // 群组编排首成员专用：复用 orchestrateGroupConversation 已构建并落库的用户消息内容
+        prebuiltMessageContent: String? = null,
         proxySenderNameOverride: String? = null,
         chatModelConfigIdOverride: String? = null,
         chatModelIndexOverride: Int? = null,
@@ -729,6 +731,7 @@ class MessageCoordinationDelegate(
             attachments = currentAttachments,
             chatId = chatId,
             messageTextOverride = effectiveMessageTextOverride,
+            prebuiltMessageContent = prebuiltMessageContent,
             proxySenderNameOverride = proxySenderName,
             workspacePath = workspacePath,
             workspaceEnv = workspaceEnv,
@@ -970,6 +973,10 @@ class MessageCoordinationDelegate(
                     roleCardIdOverride = member.characterCardId,
                     chatIdOverride = chatId,
                     messageTextOverride = memberMessage,
+                    // 首成员的输入就是编排器落库的那条用户消息，复用已构建内容，
+                    // 避免重建触发第二遍输入处理钩子，并让 sendUserMessage
+                    // 据此剥离历史末尾的同一条消息，防止模型收到两份
+                    prebuiltMessageContent = if (isFirstMemberOfFirstRound) finalUserMessageContent else null,
                     proxySenderNameOverride = null,
                     chatModelConfigIdOverride = null,
                     chatModelIndexOverride = null,
