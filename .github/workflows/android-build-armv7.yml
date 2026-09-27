@@ -119,29 +119,31 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Set up Android SDK
+      - name: Ensure sdkmanager (locate or download commandline-tools)
         shell: bash
         run: |
           set -euo pipefail
-          # android-actions/setup-android was removed here: it runs
-          # `sdkmanager tools` and the legacy "tools" package no longer exists
-          # in the Google SDK repository. The GitHub runner already ships a
-          # preinstalled Android SDK with accepted licenses, so export the
-          # environment paths and locate sdkmanager directly instead.
+          # The runner image layout varies between image releases; locate
+          # sdkmanager first and download commandline-tools as a fallback.
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          SDKMANAGER_BIN="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n 1)"
+          SDKMANAGER_BIN="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n 1 || true)"
           if [[ -z "$SDKMANAGER_BIN" ]]; then
-            SDKMANAGER_BIN="$(command -v sdkmanager || true)"
+            echo "cmdline-tools not found; downloading..."
+            mkdir -p "$ANDROID_HOME/cmdline-tools"
+            curl -sSL -o /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+            unzip -q -o /tmp/clt.zip -d /tmp/clt
+            rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+            mv /tmp/clt/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+            SDKMANAGER_BIN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           fi
-          if [[ -z "$SDKMANAGER_BIN" ]]; then
-            echo "::error::sdkmanager not found"
-            exit 1
-          fi
+          chmod +x "$SDKMANAGER_BIN" || true
           echo "SDKMANAGER=$SDKMANAGER_BIN" >> "$GITHUB_ENV"
-          echo "sdkmanager: $SDKMANAGER_BIN"
+          yes | "$SDKMANAGER_BIN" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER_BIN" --version | head -n 3
+          echo "located sdkmanager: $SDKMANAGER_BIN"
 
       - name: Install Android SDK, NDK and CMake
         shell: bash
